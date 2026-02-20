@@ -1,0 +1,51 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    monitor: 'openfinance-monitor'
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: []
+
+rule_files: []
+
+scrape_configs:
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+        labels:
+          service: 'prometheus'
+
+  - job_name: 'backend'
+    static_configs:
+      - targets: ['backend:9001']
+        labels:
+          service: 'backend'
+          environment: 'development'
+    metrics_path: '/metrics'
+
+  - job_name: 'postgres'
+    static_configs:
+      - targets: ['postgres_exporter:9187']
+        labels:
+          service: 'postgres'
+
+  - job_name: 'redis'
+    static_configs:
+      - targets: ['redis_exporter:9121']
+        labels:
+          service: 'redis'
+
+  - job_name: 'node'
+    static_configs:
+      - targets: ['node_exporter:9100']
+        labels:
+          service: 'node'
+
+  - job_name: 'cadvisor'
+    static_configs:
+      - targets: ['cadvisor:8080']
+        labels:
+          service: 'cadvisor'

@@ -1,0 +1,64 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e1]:
+  - banner [ref=e2]:
+    - generic [ref=e3]:
+      - link "OpenFinance" [ref=e5] [cursor=pointer]:
+        - /url: /
+        - img [ref=e6]
+        - generic [ref=e8]: OpenFinance
+      - navigation [ref=e9]:
+        - link "首页" [ref=e10] [cursor=pointer]:
+          - /url: /
+        - link "智能分析" [ref=e11] [cursor=pointer]:
+          - /url: /analysis
+        - link "智能问答" [ref=e12] [cursor=pointer]:
+          - /url: /finchat
+        - link "数据中心" [ref=e13] [cursor=pointer]:
+          - /url: /datacenter
+        - link "知识图谱" [ref=e14] [cursor=pointer]:
+          - /url: /knowledge-graph
+        - link "量化分析" [ref=e15] [cursor=pointer]:
+          - /url: /quant
+  - main [ref=e16]:
+    - generic [ref=e18]:
+      - generic [ref=e19]:
+        - generic [ref=e20]:
+          - img [ref=e22]
+          - generic [ref=e25]:
+            - heading "量化分析" [level=1] [ref=e26]
+            - paragraph [ref=e27]: 因子管理 · 策略开发 · 回测评测 · 自定义因子
+        - button "刷新数据" [ref=e28] [cursor=pointer]:
+          - img [ref=e29]
+          - text: 刷新数据
+      - generic [ref=e34]:
+        - generic [ref=e35]:
+          - tab "因子管理" [ref=e36] [cursor=pointer]:
+            - img [ref=e37]
+            - text: 因子管理
+          - tab "策略开发" [ref=e41] [cursor=pointer]:
+            - img [ref=e42]
+            - text: 策略开发
+          - tab "回测评测" [ref=e45] [cursor=pointer]:
+            - img [ref=e46]
+            - text: 回测评测
+          - tab "自定义因子" [active] [selected] [ref=e49] [cursor=pointer]:
+            - img [ref=e50]
+            - text: 自定义因子
+        - tabpanel [ref=e53]:
+          - generic [ref=e54]:
+            - generic [ref=e55]:
+              - heading "自定义因子开发" [level=3] [ref=e56]:
+                - img [ref=e57]
+                - text: 自定义因子开发
+              - paragraph [ref=e60]: 编写 Python 代码创建自定义因子
+            - generic [ref=e63]:
+              - generic [ref=e64]:
+                - text: Python 代码
+                - 'textbox "def factor(df, period=20): ..." [ref=e65]': "def factor(df, period=20): \"\"\"Custom factor calculation\"\"\" close = df['close'] return close.pct_change(period).iloc[-1]"
+              - generic [ref=e66]:
+                - button "验证代码" [ref=e67] [cursor=pointer]
+                - button "测试因子" [ref=e68] [cursor=pointer]
+  - alert [ref=e69]
+```

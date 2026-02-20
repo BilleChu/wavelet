@@ -1,0 +1,70 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e1]:
+  - banner [ref=e2]:
+    - generic [ref=e3]:
+      - link "OpenFinance" [ref=e5] [cursor=pointer]:
+        - /url: /
+        - img [ref=e6]
+        - generic [ref=e8]: OpenFinance
+      - navigation [ref=e9]:
+        - link "首页" [ref=e10] [cursor=pointer]:
+          - /url: /
+        - link "智能分析" [ref=e11] [cursor=pointer]:
+          - /url: /analysis
+        - link "智能问答" [ref=e12] [cursor=pointer]:
+          - /url: /finchat
+        - link "数据中心" [ref=e13] [cursor=pointer]:
+          - /url: /datacenter
+        - link "知识图谱" [ref=e14] [cursor=pointer]:
+          - /url: /knowledge-graph
+        - link "量化分析" [ref=e15] [cursor=pointer]:
+          - /url: /quant
+  - main [ref=e16]:
+    - generic [ref=e17]:
+      - generic [ref=e20]:
+        - generic [ref=e21]:
+          - generic [ref=e22]: 🤖
+          - generic [ref=e23]:
+            - heading "默认助手" [level=1] [ref=e24]
+            - paragraph [ref=e25]: 通用金融分析
+        - button "默认助手" [ref=e28] [cursor=pointer]:
+          - img [ref=e29]
+          - generic [ref=e31]: 默认助手
+      - generic [ref=e34]:
+        - img [ref=e36]
+        - heading "您好！我是 OpenFinance 智能助手" [level=2] [ref=e39]
+        - paragraph [ref=e40]: 我可以帮您分析股票、行业、宏观经济，并提供投资建议。 选择一个角色开始对话，或直接输入您的问题。
+        - generic [ref=e41]:
+          - button "📈 浦发银行的市盈率是多少 估值查询" [ref=e42] [cursor=pointer]:
+            - generic [ref=e43]: 📈
+            - generic [ref=e44]:
+              - generic [ref=e45]: 浦发银行的市盈率是多少
+              - generic [ref=e46]: 估值查询
+          - button "🏦 分析一下银行业的发展趋势 行业研究" [ref=e47] [cursor=pointer]:
+            - generic [ref=e48]: 🏦
+            - generic [ref=e49]:
+              - generic [ref=e50]: 分析一下银行业的发展趋势
+              - generic [ref=e51]: 行业研究
+          - button "💡 巴菲特怎么看比亚迪 投资观点" [ref=e52] [cursor=pointer]:
+            - generic [ref=e53]: 💡
+            - generic [ref=e54]:
+              - generic [ref=e55]: 巴菲特怎么看比亚迪
+              - generic [ref=e56]: 投资观点
+          - button "🎯 贵州茅台的投资价值分析 深度分析" [ref=e57] [cursor=pointer]:
+            - generic [ref=e58]: 🎯
+            - generic [ref=e59]:
+              - generic [ref=e60]: 贵州茅台的投资价值分析
+              - generic [ref=e61]: 深度分析
+      - generic [ref=e63]:
+        - generic [ref=e64]:
+          - textbox "输入您的问题，例如：浦发银行的市盈率是多少？" [active] [ref=e66]
+          - button "发送" [disabled]:
+            - img
+            - generic: 发送
+        - generic [ref=e67]:
+          - paragraph [ref=e68]: 按 Enter 发送，Shift + Enter 换行
+          - paragraph [ref=e69]: "Session: 0mlmq4yk"
+  - alert [ref=e70]
+```

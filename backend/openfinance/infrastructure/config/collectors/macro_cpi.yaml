@@ -1,0 +1,56 @@
+# Macro Economic Data Collector Configuration
+# ============================================
+# 宏观经济数据采集器配置
+
+collector_id: "eastmoney_macro_cpi"
+name: "CPI数据"
+source: "eastmoney"
+data_type: "macro_cpi"
+frequency: "monthly"
+
+request:
+  method: "GET"
+  url: "http://datacenter.eastmoney.com/api/data/get"
+  headers:
+    User-Agent: "Mozilla/5.0"
+  params:
+    type: "RPTA_APP_ECONOMY"
+    sty: "RPTA_APP_ECONOMY"
+    st: "REPORT_DATE"
+    sr: "1"
+    p: "1"
+    ps: "50"
+  timeout: 30.0
+
+auth:
+  type: "none"
+
+parser:
+  data_path: "result.data"
+
+field_mapping:
+  REPORT_DATE:
+    target: "report_date"
+    type: "date"
+  CPI_YOY:
+    target: "cpi_yoy"
+    type: "float"
+  CPI_MOM:
+    target: "cpi_mom"
+    type: "float"
+  CPI_ACCUMULATIVE:
+    target: "cpi_accumulative"
+    type: "float"
+
+required_fields:
+  - "report_date"
+
+dedup_keys:
+  - "report_date"
+
+rate_limit: 5.0
+max_retries: 3
+
+metadata:
+  description: "CPI消费者价格指数数据"
+  frequency: "月度"

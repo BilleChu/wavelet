@@ -1,0 +1,193 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e1]:
+  - banner [ref=e2]:
+    - generic [ref=e3]:
+      - link "OpenFinance" [ref=e5] [cursor=pointer]:
+        - /url: /
+        - img [ref=e6]
+        - generic [ref=e8]: OpenFinance
+      - navigation [ref=e9]:
+        - link "首页" [ref=e10] [cursor=pointer]:
+          - /url: /
+        - link "智能分析" [ref=e11] [cursor=pointer]:
+          - /url: /analysis
+        - link "智能问答" [ref=e12] [cursor=pointer]:
+          - /url: /finchat
+        - link "数据中心" [ref=e13] [cursor=pointer]:
+          - /url: /datacenter
+        - link "知识图谱" [ref=e14] [cursor=pointer]:
+          - /url: /knowledge-graph
+        - link "量化分析" [ref=e15] [cursor=pointer]:
+          - /url: /quant
+  - main [ref=e16]:
+    - generic [ref=e17]:
+      - generic [ref=e20]:
+        - generic [ref=e21]:
+          - link [ref=e22] [cursor=pointer]:
+            - /url: /
+            - img [ref=e23]
+          - generic [ref=e25]:
+            - img [ref=e27]
+            - generic [ref=e31]:
+              - heading "数据中心" [level=1] [ref=e32]
+              - paragraph [ref=e33]: 数据采集、处理与服务管理
+          - generic [ref=e34]:
+            - img [ref=e35]
+            - generic [ref=e42]: 数据库断开
+        - generic [ref=e43]:
+          - button "数据采集" [ref=e44] [cursor=pointer]:
+            - img [ref=e45]
+            - text: 数据采集
+          - button "数据服务" [ref=e47] [cursor=pointer]:
+            - img [ref=e48]
+            - text: 数据服务
+      - generic [ref=e51]:
+        - generic [ref=e52]:
+          - generic [ref=e53]:
+            - button "一键启动" [ref=e54] [cursor=pointer]:
+              - img [ref=e55]
+              - text: 一键启动
+            - button "一键暂停" [ref=e57] [cursor=pointer]:
+              - img [ref=e58]
+              - text: 一键暂停
+            - button "初始化任务" [ref=e61] [cursor=pointer]:
+              - img [ref=e62]
+              - text: 初始化任务
+          - button "刷新" [ref=e63] [cursor=pointer]:
+            - img [ref=e64]
+            - text: 刷新
+        - generic [ref=e69]:
+          - generic [ref=e71]:
+            - img [ref=e73]
+            - generic [ref=e75]:
+              - paragraph [ref=e76]: 运行中
+              - paragraph [ref=e77]: "0"
+          - generic [ref=e79]:
+            - img [ref=e81]
+            - generic [ref=e84]:
+              - paragraph [ref=e85]: 已完成
+              - paragraph [ref=e86]: "0"
+          - generic [ref=e88]:
+            - img [ref=e90]
+            - generic [ref=e94]:
+              - paragraph [ref=e95]: 失败
+              - paragraph [ref=e96]: "0"
+          - generic [ref=e98]:
+            - img [ref=e100]
+            - generic [ref=e102]:
+              - paragraph [ref=e103]: 成功率
+              - paragraph [ref=e104]: 0%
+          - generic [ref=e106]:
+            - img [ref=e108]
+            - generic [ref=e111]:
+              - paragraph [ref=e112]: 数据存储
+              - paragraph [ref=e113]: PostgreSQL
+        - generic [ref=e115]:
+          - generic [ref=e116]:
+            - generic [ref=e117]:
+              - img [ref=e119]
+              - generic [ref=e122]:
+                - paragraph [ref=e123]: 数据源
+                - paragraph [ref=e124]: 东方财富/AKShare
+            - img [ref=e125]
+            - generic [ref=e127]:
+              - img [ref=e129]
+              - generic [ref=e133]:
+                - paragraph [ref=e134]: 数据处理
+                - paragraph [ref=e135]: 验证/清洗/转换
+            - img [ref=e136]
+            - generic [ref=e138]:
+              - img [ref=e140]
+              - generic [ref=e143]:
+                - paragraph [ref=e144]: 数据存储
+                - paragraph [ref=e145]: PostgreSQL 数据库
+          - generic [ref=e146]:
+            - img [ref=e147]
+            - generic [ref=e149]: 所有采集数据直接写入数据库
+        - generic [ref=e150]:
+          - generic [ref=e151]:
+            - button "任务管理" [ref=e152] [cursor=pointer]:
+              - img [ref=e153]
+              - text: 任务管理
+            - button "任务链路" [ref=e155] [cursor=pointer]:
+              - img [ref=e156]
+              - text: 任务链路
+            - button "触发器" [ref=e160] [cursor=pointer]:
+              - img [ref=e161]
+              - text: 触发器
+            - button "数据源" [ref=e163] [cursor=pointer]:
+              - img [ref=e164]
+              - text: 数据源
+          - button "新建任务" [active] [ref=e168] [cursor=pointer]:
+            - img [ref=e169]
+            - text: 新建任务
+        - generic [ref=e170]:
+          - generic [ref=e171]:
+            - button "全部" [ref=e172] [cursor=pointer]
+            - button "运行中" [ref=e173] [cursor=pointer]
+            - button "队列中" [ref=e174] [cursor=pointer]
+            - button "已完成" [ref=e175] [cursor=pointer]
+            - button "失败" [ref=e176] [cursor=pointer]
+            - button "已暂停" [ref=e177] [cursor=pointer]
+          - table [ref=e180]:
+            - rowgroup [ref=e181]:
+              - row "任务名称 类型 状态 进度 数据源 创建时间 操作" [ref=e182]:
+                - columnheader "任务名称" [ref=e183]
+                - columnheader "类型" [ref=e184]
+                - columnheader "状态" [ref=e185]
+                - columnheader "进度" [ref=e186]
+                - columnheader "数据源" [ref=e187]
+                - columnheader "创建时间" [ref=e188]
+                - columnheader "操作" [ref=e189]
+            - rowgroup [ref=e190]:
+              - row "暂无任务数据 点击下方按钮创建您的第一个数据采集任务 初始化默认任务 新建任务" [ref=e191]:
+                - cell "暂无任务数据 点击下方按钮创建您的第一个数据采集任务 初始化默认任务 新建任务" [ref=e192]:
+                  - generic [ref=e193]:
+                    - img [ref=e195]
+                    - paragraph [ref=e197]: 暂无任务数据
+                    - paragraph [ref=e198]: 点击下方按钮创建您的第一个数据采集任务
+                    - generic [ref=e199]:
+                      - button "初始化默认任务" [ref=e200] [cursor=pointer]:
+                        - img [ref=e201]
+                        - text: 初始化默认任务
+                      - button "新建任务" [ref=e205] [cursor=pointer]:
+                        - img [ref=e206]
+                        - text: 新建任务
+        - generic [ref=e209]:
+          - generic [ref=e210]:
+            - heading "新建任务" [level=3] [ref=e211]
+            - button [ref=e212] [cursor=pointer]:
+              - img [ref=e213]
+          - generic [ref=e216]:
+            - generic [ref=e217]:
+              - generic [ref=e218]: 任务名称
+              - textbox "输入任务名称" [ref=e219]
+            - generic [ref=e220]:
+              - generic [ref=e221]: 任务类型
+              - combobox [ref=e222]:
+                - option "股票列表 - 获取A股所有上市公司列表" [selected]
+                - option "实时行情 - 获取股票实时行情数据"
+                - option "指数行情 - 获取主要指数行情数据"
+                - option "北向资金 - 获取北向资金流向数据"
+                - option "财务指标 - 获取上市公司财务指标"
+                - option "ETF行情 - 获取ETF基金行情数据"
+                - option "行业行情 - 获取行业板块行情数据"
+                - option "概念行情 - 获取概念板块行情数据"
+                - option "公司档案 - 获取公司档案并构建知识图谱"
+            - generic [ref=e223]:
+              - generic [ref=e224]: 优先级
+              - combobox [ref=e225]:
+                - option "紧急"
+                - option "高"
+                - option "普通" [selected]
+                - option "低"
+                - option "后台"
+          - generic [ref=e226]:
+            - button "取消" [ref=e227] [cursor=pointer]
+            - button "创建并启动" [disabled]:
+              - img
+              - text: 创建并启动
+  - alert [ref=e228]
+```

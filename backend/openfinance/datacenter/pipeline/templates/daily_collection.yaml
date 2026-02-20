@@ -1,0 +1,111 @@
+template_id: daily_collection
+name: Daily Data Collection
+description: Daily stock data collection pipeline for market quotes, financial indicators, and money flow data
+version: 1.0.0
+category: collection
+tags:
+  - daily
+  - stock
+  - market
+  - scheduled
+
+stages:
+  - id: preload_companies
+    name: Preload Companies
+    type: source
+    handler: company_preload
+    config:
+      include_delisted: false
+      markets:
+        - SH
+        - SZ
+
+  - id: collect_quotes
+    name: Collect Stock Quotes
+    type: source
+    handler: stock_quote_collector
+    config:
+      include_realtime: true
+      include_kline: true
+
+  - id: collect_financial
+    name: Collect Financial Indicators
+    type: source
+    handler: financial_collector
+    config:
+      report_types:
+        - balance_sheet
+        - income_statement
+        - cash_flow
+
+  - id: collect_money_flow
+    name: Collect Money Flow
+    type: source
+    handler: money_flow_collector
+    config:
+      include_north_money: true
+
+  - id: validate_data
+    name: Validate Data Quality
+    type: validate
+    handler: data_validator
+    config:
+      check_completeness: true
+      check_accuracy: true
+      min_completeness: 0.95
+
+  - id: save_to_db
+    name: Save to Database
+    type: sink
+    handler: database_sink
+    config:
+      upsert: true
+      batch_size: 500
+
+  - id: sync_to_graph
+    name: Sync to Knowledge Graph
+    type: sink
+    handler: graph_sync
+    config:
+      create_entities: true
+      create_relations: true
+
+edges:
+  - source: preload_companies
+    target: collect_quotes
+  - source: preload_companies
+    target: collect_financial
+  - source: preload_companies
+    target: collect_money_flow
+  - source: collect_quotes
+    target: validate_data
+  - source: collect_financial
+    target: validate_data
+  - source: collect_money_flow
+    target: validate_data
+  - source: validate_data
+    target: save_to_db
+  - source: save_to_db
+    target: sync_to_graph
+
+default_config:
+  batch_size: 500
+  timeout_seconds: 300
+  retry_count: 3
+  parallel_stages: true
+
+config_schema:
+  type: object
+  properties:
+    batch_size:
+      type: integer
+      minimum: 1
+      maximum: 1000
+    timeout_seconds:
+      type: number
+      minimum: 10
+      maximum: 3600
+    retry_count:
+      type: integer
+      minimum: 0
+      maximum: 10

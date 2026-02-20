@@ -1,0 +1,70 @@
+# Datacenter Configuration
+# =======================
+
+version: "1.0"
+
+# Data Sources Configuration
+sources:
+  eastmoney:
+    enabled: true
+    base_url: "http://push2.eastmoney.com"
+    timeout: 30.0
+    rate_limit: 10.0
+    headers:
+      User-Agent: "Mozilla/5.0"
+      Referer: "http://quote.eastmoney.com/"
+  
+  tushare:
+    enabled: true
+    base_url: "https://api.tushare.pro"
+    api_key: "${TUSHARE_TOKEN}"
+    timeout: 30.0
+    rate_limit: 5.0
+  
+  akshare:
+    enabled: true
+    timeout: 30.0
+    rate_limit: 5.0
+  
+  jinshi:
+    enabled: true
+    base_url: "https://flash-api.jin10.com"
+    timeout: 30.0
+    rate_limit: 10.0
+  
+  cls:
+    enabled: true
+    base_url: "https://www.cls.cn"
+    timeout: 30.0
+    rate_limit: 10.0
+
+# Collection Settings
+collection:
+  batch_size: 1000
+  max_concurrent: 5
+  default_start_date: "2020-01-01"
+  validate_on_collect: true
+  dedup_enabled: true
+  quality_threshold: 0.95
+  max_retries: 3
+  retry_delay: 1.0
+
+# Storage Settings
+storage:
+  database_url: "${DATABASE_URL:-sqlite:///datacenter.db}"
+  pool_size: 10
+  echo_sql: false
+  batch_insert_size: 1000
+  timezone: "Asia/Shanghai"
+
+# Cache Settings
+cache:
+  enabled: true
+  backend: "memory"
+  ttl: 300
+  max_size: 10000
+
+# Logging Settings
+logging:
+  level: "INFO"
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"

@@ -1,0 +1,28 @@
+Traceback (most recent call last):
+Traceback (most recent call last):
+  File "<string>", line 2, in <module>
+    from openfinance.storage.generic_model import (
+        GenericEntityModel, GenericRelationModel, GenericFactorModel, GenericStrategyModel
+    )
+  File "/Users/binzhu/Projects/wavelet/backend/openfinance/__init__.py", line 1, in <module>
+    from openfinance.api.main import create_app
+  File "<string>", line 2, in <module>
+    from openfinance.storage.generic_model import (
+        GenericEntityModel, GenericRelationModel, GenericFactorModel, GenericStrategyModel
+    )
+  File "/Users/binzhu/Projects/wavelet/backend/openfinance/__init__.py", line 1, in <module>
+    from openfinance.api.main import create_app
+  File "/Users/binzhu/Projects/wavelet/backend/openfinance/api/main.py", line 27, in <module>
+    from openfinance.api.routes.metadata import router as metadata_router
+  File "/Users/binzhu/Projects/wavelet/backend/openfinance/api/routes/metadata.py", line 13, in <module>
+    from ..metadata import (
+    ...<7 lines>...
+    )
+  File "/Users/binzhu/Projects/wavelet/backend/openfinance/api/main.py", line 27, in <module>
+    from openfinance.api.routes.metadata import router as metadata_router
+  File "/Users/binzhu/Projects/wavelet/backend/openfinance/api/routes/metadata.py", line 13, in <module>
+    from ..metadata import (
+    ...<7 lines>...
+    )
+ModuleNotFoundError: No module named 'openfinance.api.metadata'
+ModuleNotFoundError: No module named 'openfinance.api.metadata'

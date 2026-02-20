@@ -1,0 +1,131 @@
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - banner [ref=e2]:
+    - generic [ref=e3]:
+      - link "OpenFinance" [ref=e5] [cursor=pointer]:
+        - /url: /
+        - img [ref=e6]
+        - generic [ref=e8]: OpenFinance
+      - navigation [ref=e9]:
+        - link "首页" [ref=e10] [cursor=pointer]:
+          - /url: /
+        - link "智能分析" [ref=e11] [cursor=pointer]:
+          - /url: /analysis
+        - link "智能问答" [ref=e12] [cursor=pointer]:
+          - /url: /finchat
+        - link "数据中心" [ref=e13] [cursor=pointer]:
+          - /url: /datacenter
+        - link "知识图谱" [ref=e14] [cursor=pointer]:
+          - /url: /knowledge-graph
+        - link "量化分析" [ref=e15] [cursor=pointer]:
+          - /url: /quant
+  - main [ref=e16]:
+    - generic [ref=e17]:
+      - generic [ref=e20]:
+        - generic [ref=e21]:
+          - link [ref=e22] [cursor=pointer]:
+            - /url: /
+            - img [ref=e23]
+          - generic [ref=e25]:
+            - img [ref=e27]
+            - generic [ref=e32]:
+              - heading "知识图谱" [level=1] [ref=e33]
+              - paragraph [ref=e34]: 实体关系可视化与智能关联分析
+        - generic [ref=e35]:
+          - generic [ref=e36]:
+            - img [ref=e37]
+            - textbox "搜索实体..." [ref=e40]
+          - button "搜索" [ref=e41] [cursor=pointer]
+          - button "创建实体" [ref=e42] [cursor=pointer]:
+            - img [ref=e43]
+            - text: 创建实体
+          - button "数据质量" [ref=e44] [cursor=pointer]:
+            - img [ref=e45]
+            - text: 数据质量
+      - generic [ref=e47]:
+        - generic [ref=e48]:
+          - generic [ref=e50]:
+            - button "放大" [ref=e51] [cursor=pointer]:
+              - img [ref=e52]
+            - button "缩小" [ref=e55] [cursor=pointer]:
+              - img [ref=e56]
+            - button "重置视图" [ref=e59] [cursor=pointer]:
+              - img [ref=e60]
+            - generic [ref=e63]: 100%
+          - generic [ref=e64]:
+            - generic [ref=e65]:
+              - generic [ref=e66]: "展开深度:"
+              - button "1跳" [disabled] [ref=e67]
+              - button "2跳" [disabled] [ref=e68]
+              - button "3跳" [disabled] [ref=e69]
+            - button "标签" [ref=e71] [cursor=pointer]:
+              - img [ref=e72]
+              - text: 标签
+          - generic [ref=e76]:
+            - paragraph [ref=e77]:
+              - img [ref=e78]
+              - text: 拖拽画布平移
+            - paragraph [ref=e83]:
+              - img [ref=e84]
+              - text: 滚轮缩放
+            - paragraph [ref=e87]:
+              - img [ref=e88]
+              - text: 双击节点展开
+            - paragraph [ref=e93]:
+              - img [ref=e94]
+              - text: 拖拽节点移动
+        - generic [ref=e99]:
+          - generic [ref=e101]:
+            - img [ref=e103]
+            - paragraph [ref=e108]: 点击图谱中的节点查看详情
+            - paragraph [ref=e109]: 双击节点展开更多关系
+          - generic [ref=e110]:
+            - generic [ref=e111]:
+              - img [ref=e112]
+              - heading "图谱统计" [level=4] [ref=e114]
+            - generic [ref=e115]:
+              - generic [ref=e116]:
+                - paragraph [ref=e117]: "150"
+                - paragraph [ref=e118]: 实体数量
+              - generic [ref=e119]:
+                - paragraph [ref=e120]: "500"
+                - paragraph [ref=e121]: 关系数量
+          - generic [ref=e122]:
+            - generic [ref=e123]:
+              - img [ref=e124]
+              - heading "类型筛选" [level=4] [ref=e126]
+            - generic [ref=e127]:
+              - button "公司" [ref=e128] [cursor=pointer]:
+                - generic [ref=e130]: 公司
+                - img [ref=e131]
+              - button "行业" [ref=e134] [cursor=pointer]:
+                - generic [ref=e136]: 行业
+                - img [ref=e137]
+              - button "概念" [ref=e140] [cursor=pointer]:
+                - generic [ref=e142]: 概念
+                - img [ref=e143]
+              - button "人物" [ref=e146] [cursor=pointer]:
+                - generic [ref=e148]: 人物
+                - img [ref=e149]
+              - button "股票" [ref=e152] [cursor=pointer]:
+                - generic [ref=e154]: 股票
+                - img [ref=e155]
+              - button "基金" [ref=e158] [cursor=pointer]:
+                - generic [ref=e160]: 基金
+                - img [ref=e161]
+              - button "事件" [ref=e164] [cursor=pointer]:
+                - generic [ref=e166]: 事件
+                - img [ref=e167]
+              - button "板块" [ref=e170] [cursor=pointer]:
+                - generic [ref=e172]: 板块
+                - img [ref=e173]
+              - button "指数" [ref=e176] [cursor=pointer]:
+                - generic [ref=e178]: 指数
+                - img [ref=e179]
+              - button "投资者" [ref=e182] [cursor=pointer]:
+                - generic [ref=e184]: 投资者
+                - img [ref=e185]
+  - alert [ref=e188]
+```

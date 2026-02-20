@@ -1,0 +1,267 @@
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - banner [ref=e2]:
+    - generic [ref=e3]:
+      - link "OpenFinance" [ref=e5] [cursor=pointer]:
+        - /url: /
+        - img [ref=e6]
+        - generic [ref=e8]: OpenFinance
+      - navigation [ref=e9]:
+        - link "首页" [ref=e10] [cursor=pointer]:
+          - /url: /
+        - link "智能分析" [ref=e11] [cursor=pointer]:
+          - /url: /analysis
+        - link "智能问答" [ref=e12] [cursor=pointer]:
+          - /url: /finchat
+        - link "数据中心" [ref=e13] [cursor=pointer]:
+          - /url: /datacenter
+        - link "知识图谱" [ref=e14] [cursor=pointer]:
+          - /url: /knowledge-graph
+        - link "量化分析" [ref=e15] [cursor=pointer]:
+          - /url: /quant
+  - main [ref=e16]:
+    - generic [ref=e18]:
+      - generic [ref=e19]:
+        - generic [ref=e20]:
+          - img [ref=e22]
+          - generic [ref=e25]:
+            - heading "量化分析" [level=1] [ref=e26]
+            - paragraph [ref=e27]: 因子管理 · 策略开发 · 回测评测 · 自定义因子
+        - button "刷新数据" [ref=e28] [cursor=pointer]:
+          - img [ref=e29]
+          - text: 刷新数据
+      - generic [ref=e34]:
+        - generic [ref=e35]:
+          - tab "因子管理" [selected] [ref=e36] [cursor=pointer]:
+            - img [ref=e37]
+            - text: 因子管理
+          - tab "策略开发" [ref=e41] [cursor=pointer]:
+            - img [ref=e42]
+            - text: 策略开发
+          - tab "回测评测" [ref=e45] [cursor=pointer]:
+            - img [ref=e46]
+            - text: 回测评测
+          - tab "自定义因子" [ref=e49] [cursor=pointer]:
+            - img [ref=e50]
+            - text: 自定义因子
+        - tabpanel [ref=e53]:
+          - generic [ref=e54]:
+            - generic [ref=e56]:
+              - generic [ref=e57]:
+                - generic [ref=e58]:
+                  - heading "因子库" [level=3] [ref=e59]:
+                    - img [ref=e60]
+                    - text: 因子库
+                  - button "新建因子" [ref=e64] [cursor=pointer]:
+                    - img [ref=e65]
+                    - text: 新建因子
+                - paragraph [ref=e66]: 共 17 个因子可用
+              - generic [ref=e68]:
+                - generic [ref=e69] [cursor=pointer]:
+                  - generic [ref=e70]:
+                    - generic [ref=e71]:
+                      - heading "Idiosyncratic Volatility" [level=4] [ref=e72]
+                      - paragraph [ref=e73]: idio_volatility
+                    - generic [ref=e74]: technical
+                  - paragraph [ref=e75]: Stock-specific volatility after market adjustment
+                  - generic [ref=e76]:
+                    - generic [ref=e77]: volatility
+                    - generic [ref=e78]: volatility
+                    - generic [ref=e79]: risk
+                - generic [ref=e80] [cursor=pointer]:
+                  - generic [ref=e81]:
+                    - generic [ref=e82]:
+                      - heading "Historical Volatility" [level=4] [ref=e83]
+                      - paragraph [ref=e84]: volatility
+                    - generic [ref=e85]: technical
+                  - paragraph [ref=e86]: Annualized price volatility
+                  - generic [ref=e87]:
+                    - generic [ref=e88]: volatility
+                    - generic [ref=e89]: volatility
+                    - generic [ref=e90]: risk
+                - generic [ref=e91] [cursor=pointer]:
+                  - generic [ref=e92]:
+                    - generic [ref=e93]:
+                      - heading "Quality (ROE)" [level=4] [ref=e94]
+                      - paragraph [ref=e95]: quality_roe
+                    - generic [ref=e96]: fundamental
+                  - paragraph [ref=e97]: Return on Equity for quality investing
+                  - generic [ref=e98]:
+                    - generic [ref=e99]: quality
+                    - generic [ref=e100]: quality
+                    - generic [ref=e101]: profitability
+                - generic [ref=e102] [cursor=pointer]:
+                  - generic [ref=e103]:
+                    - generic [ref=e104]:
+                      - heading "Dividend Yield" [level=4] [ref=e105]
+                      - paragraph [ref=e106]: dividend_yield
+                    - generic [ref=e107]: fundamental
+                  - paragraph [ref=e108]: Annual dividend yield percentage
+                  - generic [ref=e109]:
+                    - generic [ref=e110]: value
+                    - generic [ref=e111]: value
+                    - generic [ref=e112]: dividend
+                - generic [ref=e113] [cursor=pointer]:
+                  - generic [ref=e114]:
+                    - generic [ref=e115]:
+                      - heading "Value (PE Ratio)" [level=4] [ref=e116]
+                      - paragraph [ref=e117]: value_pe
+                    - generic [ref=e118]: fundamental
+                  - paragraph [ref=e119]: Price-to-Earnings ratio for value investing
+                  - generic [ref=e120]:
+                    - generic [ref=e121]: value
+                    - generic [ref=e122]: value
+                    - generic [ref=e123]: valuation
+                - generic [ref=e124] [cursor=pointer]:
+                  - generic [ref=e125]:
+                    - generic [ref=e126]:
+                      - heading "Risk-Adjusted Momentum" [level=4] [ref=e127]
+                      - paragraph [ref=e128]: risk_adj_momentum
+                    - generic [ref=e129]: technical
+                  - paragraph [ref=e130]: Momentum divided by volatility (Sharpe-like)
+                  - generic [ref=e131]:
+                    - generic [ref=e132]: momentum
+                    - generic [ref=e133]: momentum
+                    - generic [ref=e134]: risk
+                - generic [ref=e135] [cursor=pointer]:
+                  - generic [ref=e136]:
+                    - generic [ref=e137]:
+                      - heading "Price Momentum" [level=4] [ref=e138]
+                      - paragraph [ref=e139]: momentum
+                    - generic [ref=e140]: technical
+                  - paragraph [ref=e141]: Price return over lookback period
+                  - generic [ref=e142]:
+                    - generic [ref=e143]: momentum
+                    - generic [ref=e144]: momentum
+                    - generic [ref=e145]: trend
+                - generic [ref=e146] [cursor=pointer]:
+                  - generic [ref=e147]:
+                    - generic [ref=e148]:
+                      - heading "KDJ (Stochastic Oscillator)" [level=4] [ref=e149]
+                      - paragraph [ref=e150]: kdj
+                    - generic [ref=e151]: technical
+                  - paragraph [ref=e152]: Momentum indicator comparing closing price to price range over period
+                  - generic [ref=e153]:
+                    - generic [ref=e154]: momentum
+                    - generic [ref=e155]: momentum
+                    - generic [ref=e156]: oscillator
+                - generic [ref=e157] [cursor=pointer]:
+                  - generic [ref=e158]:
+                    - generic [ref=e159]:
+                      - heading "RSI (Relative Strength Index)" [level=4] [ref=e160]
+                      - paragraph [ref=e161]: rsi
+                    - generic [ref=e162]: technical
+                  - paragraph [ref=e163]: Measures the speed and magnitude of recent price changes
+                  - generic [ref=e164]:
+                    - generic [ref=e165]: momentum
+                    - generic [ref=e166]: momentum
+                    - generic [ref=e167]: oscillator
+                - generic [ref=e168] [cursor=pointer]:
+                  - generic [ref=e169]:
+                    - generic [ref=e170]:
+                      - heading "OBV (On-Balance Volume)" [level=4] [ref=e171]
+                      - paragraph [ref=e172]: obv
+                    - generic [ref=e173]: technical
+                  - paragraph [ref=e174]: Momentum indicator using volume flow to predict price changes
+                  - generic [ref=e175]:
+                    - generic [ref=e176]: flow
+                    - generic [ref=e177]: volume
+                    - generic [ref=e178]: momentum
+                - generic [ref=e179] [cursor=pointer]:
+                  - generic [ref=e180]:
+                    - generic [ref=e181]:
+                      - heading "Williams %R" [level=4] [ref=e182]
+                      - paragraph [ref=e183]: wr
+                    - generic [ref=e184]: technical
+                  - paragraph [ref=e185]: Momentum indicator measuring overbought and oversold levels
+                  - generic [ref=e186]:
+                    - generic [ref=e187]: momentum
+                    - generic [ref=e188]: momentum
+                    - generic [ref=e189]: oscillator
+                - generic [ref=e190] [cursor=pointer]:
+                  - generic [ref=e191]:
+                    - generic [ref=e192]:
+                      - heading "CCI (Commodity Channel Index)" [level=4] [ref=e193]
+                      - paragraph [ref=e194]: cci
+                    - generic [ref=e195]: technical
+                  - paragraph [ref=e196]: Momentum oscillator measuring price level relative to moving average
+                  - generic [ref=e197]:
+                    - generic [ref=e198]: momentum
+                    - generic [ref=e199]: momentum
+                    - generic [ref=e200]: oscillator
+                - generic [ref=e201] [cursor=pointer]:
+                  - generic [ref=e202]:
+                    - generic [ref=e203]:
+                      - heading "ATR (Average True Range)" [level=4] [ref=e204]
+                      - paragraph [ref=e205]: atr
+                    - generic [ref=e206]: technical
+                  - paragraph [ref=e207]: Volatility indicator measuring the average range of price movement
+                  - generic [ref=e208]:
+                    - generic [ref=e209]: volatility
+                    - generic [ref=e210]: volatility
+                    - generic [ref=e211]: risk
+                - generic [ref=e212] [cursor=pointer]:
+                  - generic [ref=e213]:
+                    - generic [ref=e214]:
+                      - heading "Bollinger Bands (BOLL)" [level=4] [ref=e215]
+                      - paragraph [ref=e216]: boll
+                    - generic [ref=e217]: technical
+                  - paragraph [ref=e218]: Volatility indicator showing price relative to moving average and standard deviation
+                  - generic [ref=e219]:
+                    - generic [ref=e220]: volatility
+                    - generic [ref=e221]: volatility
+                    - generic [ref=e222]: trend
+                - generic [ref=e223] [cursor=pointer]:
+                  - generic [ref=e224]:
+                    - generic [ref=e225]:
+                      - heading "MACD (Moving Average Convergence Divergence)" [level=4] [ref=e226]
+                      - paragraph [ref=e227]: macd
+                    - generic [ref=e228]: technical
+                  - paragraph [ref=e229]: Trend-following momentum indicator showing relationship between moving averages
+                  - generic [ref=e230]:
+                    - generic [ref=e231]: momentum
+                    - generic [ref=e232]: momentum
+                    - generic [ref=e233]: trend
+                - generic [ref=e234] [cursor=pointer]:
+                  - generic [ref=e235]:
+                    - generic [ref=e236]:
+                      - heading "EMA (Exponential Moving Average)" [level=4] [ref=e237]
+                      - paragraph [ref=e238]: ema
+                    - generic [ref=e239]: technical
+                  - paragraph [ref=e240]: Weighted moving average giving more weight to recent prices
+                  - generic [ref=e241]:
+                    - generic [ref=e242]: momentum
+                    - generic [ref=e243]: trend
+                    - generic [ref=e244]: moving_average
+                - generic [ref=e245] [cursor=pointer]:
+                  - generic [ref=e246]:
+                    - generic [ref=e247]:
+                      - heading "SMA (Simple Moving Average)" [level=4] [ref=e248]
+                      - paragraph [ref=e249]: sma
+                    - generic [ref=e250]: technical
+                  - paragraph [ref=e251]: Trend-following indicator using average price over period
+                  - generic [ref=e252]:
+                    - generic [ref=e253]: momentum
+                    - generic [ref=e254]: trend
+                    - generic [ref=e255]: moving_average
+            - generic [ref=e256]:
+              - generic [ref=e257]:
+                - heading "因子详情" [level=3] [ref=e259]:
+                  - img [ref=e260]
+                  - text: 因子详情
+                - generic [ref=e263]:
+                  - img [ref=e264]
+                  - paragraph [ref=e266]: 请从因子库中选择一个因子查看详情
+              - generic [ref=e267]:
+                - generic [ref=e268]:
+                  - heading "标的查询" [level=3] [ref=e269]:
+                    - img [ref=e270]
+                    - text: 标的查询
+                  - paragraph [ref=e273]: 查询指定股票的因子数据
+                - generic [ref=e275]:
+                  - img [ref=e276]
+                  - paragraph [ref=e279]: 请先选择一个因子
+  - alert [ref=e280]
+```

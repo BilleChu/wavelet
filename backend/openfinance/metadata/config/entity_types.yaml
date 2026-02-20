@@ -1,0 +1,384 @@
+version: "1.0"
+metadata:
+  namespace: openfinance
+  description: OpenFinance 实体类型定义
+
+entity_types:
+  company:
+    display_name: 公司
+    category: core
+    description: 上市公司或非上市公司实体
+    version: "1.0.0"
+    
+    properties:
+      code:
+        type: string
+        required: true
+        unique: true
+        index: true
+        max_length: 20
+        description: 公司代码/股票代码
+        
+      name:
+        type: string
+        required: true
+        index: true
+        max_length: 100
+        description: 公司名称
+        
+      short_name:
+        type: string
+        max_length: 50
+        description: 简称
+        
+      industry:
+        type: string
+        index: true
+        max_length: 50
+        description: 所属行业
+        
+      sector:
+        type: string
+        index: true
+        max_length: 50
+        description: 所属板块
+        
+      market:
+        type: enum
+        values: [SH, SZ, BJ, HK, US]
+        description: 上市市场
+        
+      listing_date:
+        type: date
+        description: 上市日期
+        
+      market_cap:
+        type: decimal
+        precision: 20
+        scale: 2
+        description: 总市值
+        
+      description:
+        type: text
+        description: 公司描述
+        
+    relations:
+      belongs_to:
+        target_types: [industry, sector]
+        cardinality: many-to-one
+        
+      has_concept:
+        target_types: [concept]
+        cardinality: many-to-many
+        
+    quality_rules:
+      - name: check_missing_industry
+        severity: warning
+        condition: "industry is not null"
+        message: "公司缺少行业信息"
+        
+    searchable_fields: [name, code, short_name]
+    default_sort: market_cap desc
+    list_fields: [code, name, industry, market_cap]
+
+  stock:
+    display_name: 股票
+    category: core
+    description: 股票交易实体
+    version: "1.0.0"
+    extends: company
+    
+    properties:
+      stock_type:
+        type: enum
+        values: [A, B, H, N]
+        default: A
+        description: 股票类型
+        
+      trading_status:
+        type: enum
+        values: [active, suspended, delisted]
+        default: active
+        description: 交易状态
+
+  industry:
+    display_name: 行业
+    category: classification
+    description: 行业分类实体
+    version: "1.0.0"
+    
+    properties:
+      code:
+        type: string
+        required: true
+        unique: true
+        index: true
+        description: 行业代码
+        
+      name:
+        type: string
+        required: true
+        index: true
+        description: 行业名称
+        
+      level:
+        type: integer
+        min: 1
+        max: 4
+        description: 行业层级
+        
+      parent_code:
+        type: string
+        description: 父级行业代码
+        
+      classification:
+        type: enum
+        values: [sw, zx, ths, custom]
+        default: sw
+        description: 分类标准
+        
+    relations:
+      parent_of:
+        target_types: [industry]
+        cardinality: one-to-many
+        
+    searchable_fields: [name, code]
+    list_fields: [code, name, level, classification]
+
+  concept:
+    display_name: 概念
+    category: classification
+    description: 概念题材实体
+    version: "1.0.0"
+    
+    properties:
+      code:
+        type: string
+        unique: true
+        description: 概念代码
+        
+      name:
+        type: string
+        required: true
+        index: true
+        description: 概念名称
+        
+      category:
+        type: string
+        description: 概念分类
+        
+      hotness:
+        type: integer
+        min: 0
+        max: 100
+        description: 热度指数
+        
+      description:
+        type: text
+        description: 概念描述
+        
+    searchable_fields: [name, code]
+    list_fields: [code, name, category, hotness]
+
+  person:
+    display_name: 人物
+    category: reference
+    description: 人物实体
+    version: "1.0.0"
+    
+    properties:
+      name:
+        type: string
+        required: true
+        index: true
+        description: 姓名
+        
+      title:
+        type: string
+        description: 职位
+        
+      company:
+        type: string
+        description: 所属公司
+        
+      biography:
+        type: text
+        description: 简介
+        
+    relations:
+      works_for:
+        target_types: [company]
+        cardinality: many-to-one
+        
+      manages:
+        target_types: [company]
+        cardinality: many-to-one
+        
+    searchable_fields: [name, company]
+    list_fields: [name, title, company]
+
+  event:
+    display_name: 事件
+    category: reference
+    description: 市场事件实体
+    version: "1.0.0"
+    
+    properties:
+      title:
+        type: string
+        required: true
+        description: 事件标题
+        
+      content:
+        type: text
+        description: 事件内容
+        
+      event_type:
+        type: enum
+        values: [listing, dividend, merger, acquisition, scandal, policy]
+        description: 事件类型
+        
+      event_date:
+        type: datetime
+        required: true
+        index: true
+        description: 事件日期
+        
+      impact_level:
+        type: enum
+        values: [high, medium, low]
+        description: 影响级别
+        
+      sentiment:
+        type: decimal
+        precision: 4
+        scale: 3
+        min: -1
+        max: 1
+        description: 情感分数
+        
+    searchable_fields: [title, content]
+    default_sort: event_date desc
+    list_fields: [title, event_type, event_date, impact_level]
+
+  index:
+    display_name: 指数
+    category: reference
+    description: 股票指数实体
+    version: "1.0.0"
+    
+    properties:
+      code:
+        type: string
+        required: true
+        unique: true
+        description: 指数代码
+        
+      name:
+        type: string
+        required: true
+        description: 指数名称
+        
+      exchange:
+        type: enum
+        values: [SSE, SZSE, CSI]
+        description: 交易所
+        
+      base_date:
+        type: date
+        description: 基准日期
+        
+      base_value:
+        type: decimal
+        description: 基准点数
+        
+    searchable_fields: [name, code]
+    list_fields: [code, name, exchange]
+
+  fund:
+    display_name: 基金
+    category: reference
+    description: 基金实体
+    version: "1.0.0"
+    
+    properties:
+      code:
+        type: string
+        required: true
+        unique: true
+        description: 基金代码
+        
+      name:
+        type: string
+        required: true
+        description: 基金名称
+        
+      fund_type:
+        type: enum
+        values: [stock, bond, mixed, money, etf, lof]
+        description: 基金类型
+        
+      manager:
+        type: string
+        description: 基金经理
+        
+      company:
+        type: string
+        description: 基金公司
+        
+      inception_date:
+        type: date
+        description: 成立日期
+        
+    searchable_fields: [name, code, manager]
+    list_fields: [code, name, fund_type, manager]
+
+  investor:
+    display_name: 投资者
+    category: reference
+    description: 投资者实体
+    version: "1.0.0"
+    
+    properties:
+      name:
+        type: string
+        required: true
+        description: 投资者名称
+        
+      investor_type:
+        type: enum
+        values: [institution, individual, fund, foreign]
+        description: 投资者类型
+        
+      holdings:
+        type: json
+        description: 持仓信息
+        
+    searchable_fields: [name]
+    list_fields: [name, investor_type]
+
+  sector:
+    display_name: 板块
+    category: classification
+    description: 板块分类实体
+    version: "1.0.0"
+    
+    properties:
+      code:
+        type: string
+        required: true
+        unique: true
+        description: 板块代码
+        
+      name:
+        type: string
+        required: true
+        index: true
+        description: 板块名称
+        
+      description:
+        type: text
+        description: 板块描述
+        
+    searchable_fields: [name, code]
+    list_fields: [code, name]

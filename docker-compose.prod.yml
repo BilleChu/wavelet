@@ -1,0 +1,22 @@
+# Docker Compose Override for Production
+version: '3.8'
+
+services:
+  backend:
+    build:
+      target: production
+    environment:
+      - DEBUG=0
+      - LOG_LEVEL=INFO
+    ports:
+      - "19100:19100"
+    volumes: []
+
+  frontend:
+    build:
+      target: production
+    environment:
+      - NODE_ENV=production
+    ports:
+      - "3000:3000"
+    volumes: []

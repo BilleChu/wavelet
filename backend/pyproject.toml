@@ -1,0 +1,149 @@
+[project]
+name = "openfinance"
+version = "1.0.0"
+description = "OpenFinance - Intelligent Financial Analysis Platform based on LLM"
+readme = "README.md"
+requires-python = ">=3.11"
+license = {text = "MIT"}
+authors = [
+    {name = "OpenFinance Team", email = "team@openfinance.ai"}
+]
+keywords = ["finance", "llm", "agent", "langgraph", "fastapi"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Framework :: FastAPI",
+    "Topic :: Office/Business :: Financial",
+]
+
+dependencies = [
+    "fastapi>=0.109.0",
+    "uvicorn[standard]>=0.27.0",
+    "pydantic>=2.5.0",
+    "pydantic-settings>=2.1.0",
+    "langgraph>=0.0.20",
+    "langchain-core>=0.1.0",
+    "sqlalchemy[asyncio]>=2.0.25",
+    "asyncpg>=0.29.0",
+    "aiomysql>=0.2.0",
+    "redis[asyncio]>=5.0.0",
+    "celery[redis]>=5.3.0",
+    "httpx>=0.26.0",
+    "aiohttp>=3.9.0",
+    "python-jose[cryptography]>=3.3.0",
+    "passlib[bcrypt]>=1.7.4",
+    "python-multipart>=0.0.6",
+    "websockets>=12.0",
+    "orjson>=3.9.0",
+    "structlog>=24.1.0",
+    "tenacity>=8.2.0",
+    "opentelemetry-api>=1.22.0",
+    "opentelemetry-sdk>=1.22.0",
+    "prometheus-client>=0.19.0",
+    "beautifulsoup4>=4.12.0",
+    "lxml>=5.1.0",
+    "jieba>=0.42.1",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.0",
+    "pytest-cov>=4.1.0",
+    "pytest-mock>=3.12.0",
+    "httpx>=0.26.0",
+    "ruff>=0.1.0",
+    "mypy>=1.8.0",
+    "pre-commit>=3.6.0",
+]
+vector = [
+    "faiss-cpu>=1.7.4",
+]
+nlp = [
+    "transformers>=4.36.0",
+    "torch>=2.1.0",
+]
+
+[project.scripts]
+openfinance = "openfinance.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["openfinance"]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 120
+select = [
+    "E",      # pycodestyle errors
+    "W",      # pycodestyle warnings
+    "F",      # pyflakes
+    "I",      # isort
+    "B",      # flake8-bugbear
+    "C4",     # flake8-comprehensions
+    "UP",     # pyupgrade
+    "ARG",    # flake8-unused-arguments
+    "SIM",    # flake8-simplify
+]
+ignore = [
+    "E501",   # line too long (handled by formatter)
+    "B008",   # do not perform function calls in argument defaults
+    "B904",   # raise without from inside except
+    "ARG001", # unused function argument
+]
+
+[tool.ruff.isort]
+known-first-party = ["openfinance"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+warn_return_any = true
+warn_unused_ignores = true
+disallow_untyped_defs = true
+plugins = ["pydantic.mypy"]
+
+[[tool.mypy.overrides]]
+module = [
+    "celery.*",
+    "redis.*",
+    "jieba.*",
+]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "-v --tb=short --strict-markers"
+markers = [
+    "unit: Unit tests",
+    "integration: Integration tests",
+    "e2e: End-to-end tests",
+    "slow: Slow running tests",
+]
+
+[tool.coverage.run]
+source = ["openfinance"]
+branch = true
+omit = [
+    "*/tests/*",
+    "*/__pycache__/*",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise NotImplementedError",
+    "if TYPE_CHECKING:",
+]

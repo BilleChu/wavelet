@@ -1,0 +1,268 @@
+version: "1.0"
+metadata:
+  namespace: openfinance
+  description: OpenFinance 因子类型定义
+
+factor_types:
+  # ============ 技术因子 ============
+  rsi:
+    display_name: 相对强弱指数
+    category: derived
+    description: Relative Strength Index
+    version: "1.0.0"
+    factor_category: technical
+    
+    parameters:
+      period:
+        type: integer
+        default: 14
+        min: 2
+        max: 100
+        description: 计算周期
+    
+    dependencies: [close]
+    output_type: float
+    normalize_method: minmax
+
+  macd:
+    display_name: 指数平滑异同移动平均线
+    category: derived
+    description: Moving Average Convergence Divergence
+    version: "1.0.0"
+    factor_category: technical
+    
+    parameters:
+      fast_period:
+        type: integer
+        default: 12
+        description: 快线周期
+      slow_period:
+        type: integer
+        default: 26
+        description: 慢线周期
+      signal_period:
+        type: integer
+        default: 9
+        description: 信号线周期
+    
+    dependencies: [close]
+    output_type: object
+
+  ma:
+    display_name: 移动平均线
+    category: derived
+    description: Moving Average
+    version: "1.0.0"
+    factor_category: technical
+    
+    parameters:
+      period:
+        type: integer
+        default: 20
+        min: 2
+        max: 250
+        description: 计算周期
+      method:
+        type: enum
+        values: [sma, ema, wma]
+        default: sma
+        description: 计算方法
+    
+    dependencies: [close]
+    output_type: float
+
+  boll:
+    display_name: 布林带
+    category: derived
+    description: Bollinger Bands
+    version: "1.0.0"
+    factor_category: technical
+    
+    parameters:
+      period:
+        type: integer
+        default: 20
+        description: 计算周期
+      std_dev:
+        type: float
+        default: 2.0
+        description: 标准差倍数
+    
+    dependencies: [close]
+    output_type: object
+
+  kdj:
+    display_name: 随机指标
+    category: derived
+    description: Stochastic Oscillator
+    version: "1.0.0"
+    factor_category: technical
+    
+    parameters:
+      n:
+        type: integer
+        default: 9
+        description: N周期
+      m1:
+        type: integer
+        default: 3
+        description: M1周期
+      m2:
+        type: integer
+        default: 3
+        description: M2周期
+    
+    dependencies: [high, low, close]
+    output_type: object
+
+  atr:
+    display_name: 平均真实波幅
+    category: derived
+    description: Average True Range
+    version: "1.0.0"
+    factor_category: technical
+    
+    parameters:
+      period:
+        type: integer
+        default: 14
+        description: 计算周期
+    
+    dependencies: [high, low, close]
+    output_type: float
+
+  obv:
+    display_name: 能量潮
+    category: derived
+    description: On Balance Volume
+    version: "1.0.0"
+    factor_category: technical
+    
+    dependencies: [close, volume]
+    output_type: float
+
+  wr:
+    display_name: 威廉指标
+    category: derived
+    description: Williams %R
+    version: "1.0.0"
+    factor_category: technical
+    
+    parameters:
+      period:
+        type: integer
+        default: 14
+        description: 计算周期
+    
+    dependencies: [high, low, close]
+    output_type: float
+
+  cci:
+    display_name: 顺势指标
+    category: derived
+    description: Commodity Channel Index
+    version: "1.0.0"
+    factor_category: technical
+    
+    parameters:
+      period:
+        type: integer
+        default: 20
+        description: 计算周期
+    
+    dependencies: [high, low, close]
+    output_type: float
+
+  # ============ 基本面因子 ============
+  pe_ratio:
+    display_name: 市盈率
+    category: derived
+    description: Price to Earnings Ratio
+    version: "1.0.0"
+    factor_category: fundamental
+    
+    dependencies: [close, earnings_per_share]
+    output_type: float
+
+  pb_ratio:
+    display_name: 市净率
+    category: derived
+    description: Price to Book Ratio
+    version: "1.0.0"
+    factor_category: fundamental
+    
+    dependencies: [close, book_value_per_share]
+    output_type: float
+
+  roe:
+    display_name: 净资产收益率
+    category: derived
+    description: Return on Equity
+    version: "1.0.0"
+    factor_category: fundamental
+    
+    dependencies: [net_income, shareholders_equity]
+    output_type: float
+
+  roa:
+    display_name: 总资产收益率
+    category: derived
+    description: Return on Assets
+    version: "1.0.0"
+    factor_category: fundamental
+    
+    dependencies: [net_income, total_assets]
+    output_type: float
+
+  debt_ratio:
+    display_name: 资产负债率
+    category: derived
+    description: Debt to Asset Ratio
+    version: "1.0.0"
+    factor_category: fundamental
+    
+    dependencies: [total_liabilities, total_assets]
+    output_type: float
+
+  current_ratio:
+    display_name: 流动比率
+    category: derived
+    description: Current Ratio
+    version: "1.0.0"
+    factor_category: fundamental
+    
+    dependencies: [current_assets, current_liabilities]
+    output_type: float
+
+  # ============ 情绪因子 ============
+  sentiment_score:
+    display_name: 情绪分数
+    category: derived
+    description: Market Sentiment Score
+    version: "1.0.0"
+    factor_category: sentiment
+    
+    dependencies: [news, social_media]
+    output_type: float
+    normalize_method: zscore
+
+  # ============ 资金流因子 ============
+  money_flow:
+    display_name: 资金流向
+    category: derived
+    description: Money Flow
+    version: "1.0.0"
+    factor_category: money_flow
+    
+    dependencies: [main_inflow, retail_inflow]
+    output_type: float
+
+  turnover_rate:
+    display_name: 换手率
+    category: derived
+    description: Turnover Rate
+    version: "1.0.0"
+    factor_category: money_flow
+    
+    dependencies: [volume, shares_outstanding]
+    output_type: float

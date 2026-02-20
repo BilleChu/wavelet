@@ -1,0 +1,66 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e1]:
+  - banner [ref=e2]:
+    - generic [ref=e3]:
+      - link "OpenFinance" [ref=e5] [cursor=pointer]:
+        - /url: /
+        - img [ref=e6]
+        - generic [ref=e8]: OpenFinance
+      - navigation [ref=e9]:
+        - link "首页" [ref=e10] [cursor=pointer]:
+          - /url: /
+        - link "智能分析" [ref=e11] [cursor=pointer]:
+          - /url: /analysis
+        - link "智能问答" [ref=e12] [cursor=pointer]:
+          - /url: /finchat
+        - link "数据中心" [ref=e13] [cursor=pointer]:
+          - /url: /datacenter
+        - link "知识图谱" [ref=e14] [cursor=pointer]:
+          - /url: /knowledge-graph
+        - link "量化分析" [ref=e15] [cursor=pointer]:
+          - /url: /quant
+  - main [ref=e16]:
+    - generic [ref=e18]:
+      - generic [ref=e19]:
+        - generic [ref=e20]:
+          - img [ref=e22]
+          - generic [ref=e25]:
+            - heading "量化分析" [level=1] [ref=e26]
+            - paragraph [ref=e27]: 因子管理 · 策略开发 · 回测评测 · 自定义因子
+        - button "刷新数据" [ref=e28] [cursor=pointer]:
+          - img [ref=e29]
+          - text: 刷新数据
+      - generic [ref=e34]:
+        - generic [ref=e35]:
+          - tab "因子管理" [ref=e36] [cursor=pointer]:
+            - img [ref=e37]
+            - text: 因子管理
+          - tab "策略开发" [ref=e41] [cursor=pointer]:
+            - img [ref=e42]
+            - text: 策略开发
+          - tab "回测评测" [active] [selected] [ref=e45] [cursor=pointer]:
+            - img [ref=e46]
+            - text: 回测评测
+          - tab "自定义因子" [ref=e49] [cursor=pointer]:
+            - img [ref=e50]
+            - text: 自定义因子
+        - tabpanel [ref=e53]:
+          - generic [ref=e54]:
+            - generic [ref=e56]:
+              - heading "回测结果" [level=3] [ref=e58]:
+                - img [ref=e59]
+                - text: 回测结果
+              - generic [ref=e64]:
+                - img [ref=e65]
+                - paragraph [ref=e68]: 在策略开发页面选择策略并运行回测
+            - generic [ref=e70]:
+              - heading "绩效指标" [level=3] [ref=e72]:
+                - img [ref=e73]
+                - text: 绩效指标
+              - generic [ref=e76]:
+                - img [ref=e77]
+                - paragraph [ref=e79]: 运行回测后查看详细指标
+  - alert [ref=e80]
+```

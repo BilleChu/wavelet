@@ -1,0 +1,190 @@
+version: "1.0"
+metadata:
+  namespace: openfinance
+  description: OpenFinance 数据源定义
+
+data_sources:
+  # ============ 行情数据源 ============
+  eastmoney:
+    display_name: 东方财富
+    category: reference
+    description: 东方财富数据源
+    version: "1.0.0"
+    source_type: api
+    endpoint: https://data.eastmoney.com
+    rate_limit: 100
+    timeout_ms: 10000
+    data_types:
+      - stock_quote
+      - fund_quote
+      - index_quote
+      - financial_report
+      - news
+
+  tushare:
+    display_name: Tushare
+    category: reference
+    description: Tushare数据源
+    version: "1.0.0"
+    source_type: api
+    endpoint: https://api.tushare.pro
+    auth_type: token
+    rate_limit: 200
+    timeout_ms: 30000
+    data_types:
+      - stock_quote
+      - index_quote
+      - financial_report
+      - macro_data
+      - factor_data
+
+  akshare:
+    display_name: AKShare
+    category: reference
+    description: AKShare数据源
+    version: "1.0.0"
+    source_type: api
+    rate_limit: 50
+    timeout_ms: 15000
+    data_types:
+      - stock_quote
+      - fund_quote
+      - bond_quote
+      - futures_quote
+      - options_quote
+
+  # ============ 新闻数据源 ============
+  sina_finance:
+    display_name: 新浪财经
+    category: reference
+    description: 新浪财经新闻数据源
+    version: "1.0.0"
+    source_type: api
+    endpoint: https://finance.sina.com.cn
+    rate_limit: 60
+    timeout_ms: 10000
+    data_types:
+      - news
+      - announcement
+      - research_report
+
+  cls:
+    display_name: 财联社
+    category: reference
+    description: 财联社电报数据源
+    version: "1.0.0"
+    source_type: api
+    endpoint: https://www.cls.cn
+    rate_limit: 30
+    timeout_ms: 10000
+    data_types:
+      - news
+      - flash_news
+
+  # ============ 宏观数据源 ============
+  national_bureau:
+    display_name: 国家统计局
+    category: reference
+    description: 国家统计局数据源
+    version: "1.0.0"
+    source_type: web
+    endpoint: https://data.stats.gov.cn
+    rate_limit: 10
+    timeout_ms: 30000
+    data_types:
+      - gdp
+      - cpi
+      - ppi
+      - pmii
+      - industrial_production
+
+  world_bank:
+    display_name: 世界银行
+    category: reference
+    description: 世界银行数据源
+    version: "1.0.0"
+    source_type: api
+    endpoint: https://api.worldbank.org
+    rate_limit: 1000
+    timeout_ms: 30000
+    data_types:
+      - global_gdp
+      - inflation
+      - trade_data
+
+  # ============ 研报数据源 ============
+  eastmoney_report:
+    display_name: 东方财富研报
+    category: reference
+    description: 东方财富研报数据源
+    version: "1.0.0"
+    source_type: api
+    endpoint: https://data.eastmoney.com/report
+    rate_limit: 50
+    timeout_ms: 15000
+    data_types:
+      - research_report
+      - analyst_rating
+      - earnings_forecast
+
+  # ============ 内部数据源 ============
+  postgres_local:
+    display_name: 本地PostgreSQL
+    category: reference
+    description: 本地PostgreSQL数据库
+    version: "1.0.0"
+    source_type: database
+    endpoint: localhost:5432
+    auth_type: password
+    rate_limit: 1000
+    timeout_ms: 30000
+    data_types:
+      - stock_daily
+      - stock_basic
+      - factor_data
+      - knowledge_graph
+
+  redis_cache:
+    display_name: Redis缓存
+    category: reference
+    description: Redis缓存数据源
+    version: "1.0.0"
+    source_type: cache
+    endpoint: localhost:6379
+    rate_limit: 10000
+    timeout_ms: 5000
+    data_types:
+      - cache
+      - session
+      - realtime_quote
+
+  # ============ LLM数据源 ============
+  openai:
+    display_name: OpenAI
+    category: reference
+    description: OpenAI API
+    version: "1.0.0"
+    source_type: llm
+    endpoint: https://api.openai.com
+    auth_type: api_key
+    rate_limit: 60
+    timeout_ms: 60000
+    data_types:
+      - text_generation
+      - embedding
+      - chat_completion
+
+  zhipu:
+    display_name: 智谱AI
+    category: reference
+    description: 智谱AI API
+    version: "1.0.0"
+    source_type: llm
+    endpoint: https://open.bigmodel.cn
+    auth_type: api_key
+    rate_limit: 60
+    timeout_ms: 60000
+    data_types:
+      - text_generation
+      - embedding
+      - chat_completion

@@ -1,0 +1,313 @@
+# OpenFinance Docker Compose Configuration
+# Multi-service orchestration with debug support
+
+version: '3.8'
+
+services:
+  # ============================================
+  # Backend Service (Development)
+  # ============================================
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: development
+    container_name: openfinance-backend
+    hostname: backend
+    restart: unless-stopped
+    ports:
+      - "19100:19100"    # Application port
+      - "5678:5678"      # Debugpy debugger
+      - "9001:9001"      # Prometheus metrics
+    env_file:
+      - ./backend/.env
+    environment:
+      - DEBUG=1
+      - PYTHONUNBUFFERED=1
+      - PYTHONDONTWRITEBYTECODE=1
+      - PYTHONPATH=/app
+      - DATABASE_URL=postgresql://openfinance:openfinance@postgres:5432/openfinance
+      - REDIS_URL=redis://redis:6379/0
+      - LOG_LEVEL=DEBUG
+      - LOG_FORMAT=json
+    volumes:
+      - ./backend:/app:cached
+      - backend_logs:/app/logs
+      - backend_data:/app/data
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - openfinance-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:19100/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  # ============================================
+  # Frontend Service (Development)
+  # ============================================
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: openfinance-frontend
+    hostname: frontend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"      # Next.js dev server
+      - "9229:9229"      # Node.js debugger
+      - "9230:9230"      # Node.js inspector
+    environment:
+      - NODE_ENV=development
+      - NEXT_TELEMETRY_DISABLED=1
+      - DEBUG=*
+      - NEXT_PUBLIC_API_URL=http://localhost:19100
+      - NEXT_PUBLIC_WS_URL=ws://localhost:19100
+    volumes:
+      - ./frontend:/app:cached
+      - /app/node_modules
+      - /app/.next
+    depends_on:
+      - backend
+    networks:
+      - openfinance-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  # ============================================
+  # PostgreSQL Database
+  # ============================================
+  postgres:
+    image: postgres:15-alpine
+    container_name: openfinance-postgres
+    hostname: postgres
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=openfinance
+      - POSTGRES_PASSWORD=openfinance
+      - POSTGRES_DB=openfinance
+      - PGDATA=/var/lib/postgresql/data/pgdata
+      - POSTGRES_INITDB_ARGS=--encoding=UTF8 --locale=C.UTF-8
+      - LANG=C.UTF-8
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+      - ./docker/postgres/init_tables.sql:/docker-entrypoint-initdb.d/02-init_tables.sql:ro
+      - ./docker/postgres/init_factor_tables.sql:/docker-entrypoint-initdb.d/03-init_factor_tables.sql:ro
+      - ./docker/postgres/init_stock_tables_v2.sql:/docker-entrypoint-initdb.d/04-init_stock_tables_v2.sql:ro
+    networks:
+      - openfinance-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U openfinance -d openfinance"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "3"
+
+  # ============================================
+  # Redis Cache
+  # ============================================
+  redis:
+    image: redis:7-alpine
+    container_name: openfinance-redis
+    hostname: redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes --loglevel warning
+    volumes:
+      - redis_data:/data
+    networks:
+      - openfinance-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "3"
+
+  # ============================================
+  # Neo4j Graph Database
+  # ============================================
+  neo4j:
+    image: neo4j:5.15-community
+    container_name: openfinance-neo4j
+    hostname: neo4j
+    restart: unless-stopped
+    ports:
+      - "7474:7474"      # HTTP
+      - "7687:7687"      # Bolt
+    environment:
+      - NEO4J_AUTH=neo4j/openfinance123
+      - NEO4J_PLUGINS=["apoc"]
+      - NEO4J_dbms_memory_heap_initial__size=512m
+      - NEO4J_dbms_memory_heap_max__size=1G
+      - NEO4J_dbms_memory_pagecache_size=512m
+    volumes:
+      - neo4j_data:/data
+      - neo4j_logs:/logs
+      - neo4j_import:/var/lib/neo4j/import
+    networks:
+      - openfinance-network
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:7474 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ============================================
+  # Prometheus Monitoring
+  # ============================================
+  prometheus:
+    image: prom/prometheus:v2.48.0
+    container_name: openfinance-prometheus
+    hostname: prometheus
+    restart: unless-stopped
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./docker/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.enable-lifecycle'
+      - '--web.enable-admin-api'
+    networks:
+      - openfinance-network
+    profiles:
+      - monitoring
+
+  # ============================================
+  # Grafana Dashboard
+  # ============================================
+  grafana:
+    image: grafana/grafana:10.2.0
+    container_name: openfinance-grafana
+    hostname: grafana
+    restart: unless-stopped
+    ports:
+      - "3001:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./docker/grafana/provisioning:/etc/grafana/provisioning:ro
+    depends_on:
+      - prometheus
+    networks:
+      - openfinance-network
+    profiles:
+      - monitoring
+
+  # ============================================
+  # Loki Log Aggregation
+  # ============================================
+  loki:
+    image: grafana/loki:2.9.0
+    container_name: openfinance-loki
+    hostname: loki
+    restart: unless-stopped
+    ports:
+      - "3100:3100"
+    volumes:
+      - ./docker/loki/loki-config.yml:/etc/loki/local-config.yaml:ro
+      - loki_data:/loki
+    command: -config.file=/etc/loki/local-config.yaml
+    networks:
+      - openfinance-network
+    profiles:
+      - monitoring
+
+  # ============================================
+  # Promtail Log Collector
+  # ============================================
+  promtail:
+    image: grafana/promtail:2.9.0
+    container_name: openfinance-promtail
+    hostname: promtail
+    restart: unless-stopped
+    volumes:
+      - ./docker/promtail/promtail-config.yml:/etc/promtail/config.yml:ro
+      - /var/log:/var/log:ro
+      - backend_logs:/var/log/backend:ro
+    command: -config.file=/etc/promtail/config.yml
+    depends_on:
+      - loki
+    networks:
+      - openfinance-network
+    profiles:
+      - monitoring
+
+# ============================================
+# Networks
+# ============================================
+networks:
+  openfinance-network:
+    driver: bridge
+    name: openfinance-network
+    ipam:
+      config:
+        - subnet: 172.28.0.0/16
+
+# ============================================
+# Volumes
+# ============================================
+volumes:
+  postgres_data:
+    name: openfinance-postgres-data
+  redis_data:
+    name: openfinance-redis-data
+  neo4j_data:
+    name: openfinance-neo4j-data
+  neo4j_logs:
+    name: openfinance-neo4j-logs
+  neo4j_import:
+    name: openfinance-neo4j-import
+  backend_logs:
+    name: openfinance-backend-logs
+  backend_data:
+    name: openfinance-backend-data
+  prometheus_data:
+    name: openfinance-prometheus-data
+  grafana_data:
+    name: openfinance-grafana-data
+  loki_data:
+    name: openfinance-loki-data

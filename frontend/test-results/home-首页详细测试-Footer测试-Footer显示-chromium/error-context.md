@@ -1,0 +1,164 @@
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - banner [ref=e2]:
+    - generic [ref=e3]:
+      - link "OpenFinance" [ref=e5] [cursor=pointer]:
+        - /url: /
+        - img [ref=e6]
+        - generic [ref=e8]: OpenFinance
+      - navigation [ref=e9]:
+        - link "首页" [ref=e10] [cursor=pointer]:
+          - /url: /
+        - link "智能分析" [ref=e11] [cursor=pointer]:
+          - /url: /analysis
+        - link "智能问答" [ref=e12] [cursor=pointer]:
+          - /url: /finchat
+        - link "数据中心" [ref=e13] [cursor=pointer]:
+          - /url: /datacenter
+        - link "知识图谱" [ref=e14] [cursor=pointer]:
+          - /url: /knowledge-graph
+        - link "量化分析" [ref=e15] [cursor=pointer]:
+          - /url: /quant
+  - main [ref=e16]:
+    - generic [ref=e17]:
+      - generic [ref=e20]:
+        - generic [ref=e23]: 基于大语言模型的智能分析引擎
+        - heading "重新定义 金融分析" [level=1] [ref=e24]:
+          - text: 重新定义
+          - text: 金融分析
+        - paragraph [ref=e25]: 融合人工智能与金融专业知识，为您提供实时、精准、个性化的投资决策支持
+        - generic [ref=e26]:
+          - link "开始智能问答" [ref=e27] [cursor=pointer]:
+            - /url: /finchat
+            - button "开始智能问答" [ref=e28]:
+              - text: 开始智能问答
+              - img [ref=e29]
+          - link "探索知识图谱" [ref=e31] [cursor=pointer]:
+            - /url: /knowledge-graph
+            - button "探索知识图谱" [ref=e32]:
+              - img [ref=e33]
+              - text: 探索知识图谱
+        - generic [ref=e38]:
+          - generic [ref=e39]:
+            - img [ref=e40]
+            - generic [ref=e43]: 5000+只股票
+            - generic [ref=e44]: 数据覆盖
+          - generic [ref=e45]:
+            - img [ref=e46]
+            - generic [ref=e50]: 100+个指标
+            - generic [ref=e51]: 分析维度
+          - generic [ref=e52]:
+            - img [ref=e53]
+            - generic [ref=e55]: <1秒
+            - generic [ref=e56]: 响应速度
+          - generic [ref=e57]:
+            - img [ref=e58]
+            - generic [ref=e63]: 10万+次查询
+            - generic [ref=e64]: 用户信赖
+      - generic [ref=e66]:
+        - generic [ref=e67]:
+          - generic [ref=e68]: 核心功能
+          - heading "一站式金融分析平台" [level=2] [ref=e69]
+          - paragraph [ref=e70]: 整合多种数据源与分析工具，为您提供全方位的金融分析能力
+        - generic [ref=e71]:
+          - link "智能分析 实时交互画布，整合宏观、政策、财务、技术分析 实时更新" [ref=e72] [cursor=pointer]:
+            - /url: /analysis
+            - generic [ref=e74]:
+              - img [ref=e76]
+              - heading "智能分析" [level=3] [ref=e78]
+              - paragraph [ref=e79]: 实时交互画布，整合宏观、政策、财务、技术分析
+              - generic [ref=e80]:
+                - generic [ref=e81]: 实时更新
+                - img [ref=e82]
+          - link "量化分析 因子管理、策略开发、回测评测、自定义因子 生产级" [ref=e84] [cursor=pointer]:
+            - /url: /quant
+            - generic [ref=e86]:
+              - img [ref=e88]
+              - heading "量化分析" [level=3] [ref=e91]
+              - paragraph [ref=e92]: 因子管理、策略开发、回测评测、自定义因子
+              - generic [ref=e93]:
+                - generic [ref=e94]: 生产级
+                - img [ref=e95]
+          - link "智能问答 自然语言交互，即时获得专业金融分析 24/7 在线" [ref=e97] [cursor=pointer]:
+            - /url: /finchat
+            - generic [ref=e99]:
+              - img [ref=e101]
+              - heading "智能问答" [level=3] [ref=e104]
+              - paragraph [ref=e105]: 自然语言交互，即时获得专业金融分析
+              - generic [ref=e106]:
+                - generic [ref=e107]: 24/7 在线
+                - img [ref=e108]
+          - link "知识图谱 实体关系可视化，发现隐藏的投资机会 10万+ 实体" [ref=e110] [cursor=pointer]:
+            - /url: /knowledge-graph
+            - generic [ref=e112]:
+              - img [ref=e114]
+              - heading "知识图谱" [level=3] [ref=e119]
+              - paragraph [ref=e120]: 实体关系可视化，发现隐藏的投资机会
+              - generic [ref=e121]:
+                - generic [ref=e122]: 10万+ 实体
+                - img [ref=e123]
+      - generic [ref=e130]:
+        - generic [ref=e131]:
+          - img [ref=e133]
+          - generic [ref=e136]:
+            - heading "快速开始" [level=3] [ref=e137]
+            - paragraph [ref=e138]: 尝试以下问题，体验智能问答的强大功能
+        - generic [ref=e139]:
+          - link "浦发银行的市盈率是多少 估值查询" [ref=e140] [cursor=pointer]:
+            - /url: /finchat?q=%E6%B5%A6%E5%8F%91%E9%93%B6%E8%A1%8C%E7%9A%84%E5%B8%82%E7%9B%88%E7%8E%87%E6%98%AF%E5%A4%9A%E5%B0%91
+            - img [ref=e142]
+            - generic [ref=e144]:
+              - generic [ref=e145]: 浦发银行的市盈率是多少
+              - text: 估值查询
+            - img [ref=e146]
+          - link "分析一下贵州茅台的投资价值 深度分析" [ref=e148] [cursor=pointer]:
+            - /url: /finchat?q=%E5%88%86%E6%9E%90%E4%B8%80%E4%B8%8B%E8%B4%B5%E5%B7%9E%E8%8C%85%E5%8F%B0%E7%9A%84%E6%8A%95%E8%B5%84%E4%BB%B7%E5%80%BC
+            - img [ref=e150]
+            - generic [ref=e152]:
+              - generic [ref=e153]: 分析一下贵州茅台的投资价值
+              - text: 深度分析
+            - img [ref=e154]
+          - link "银行业的发展趋势如何 行业研究" [ref=e156] [cursor=pointer]:
+            - /url: /finchat?q=%E9%93%B6%E8%A1%8C%E4%B8%9A%E7%9A%84%E5%8F%91%E5%B1%95%E8%B6%8B%E5%8A%BF%E5%A6%82%E4%BD%95
+            - img [ref=e158]
+            - generic [ref=e160]:
+              - generic [ref=e161]: 银行业的发展趋势如何
+              - text: 行业研究
+            - img [ref=e162]
+          - link "巴菲特怎么看比亚迪 投资观点" [ref=e164] [cursor=pointer]:
+            - /url: /finchat?q=%E5%B7%B4%E8%8F%B2%E7%89%B9%E6%80%8E%E4%B9%88%E7%9C%8B%E6%AF%94%E4%BA%9A%E8%BF%AA
+            - img [ref=e166]
+            - generic [ref=e168]:
+              - generic [ref=e169]: 巴菲特怎么看比亚迪
+              - text: 投资观点
+            - img [ref=e170]
+      - generic [ref=e174]:
+        - generic [ref=e175]:
+          - img [ref=e177]
+          - generic [ref=e179]:
+            - heading "安全可靠" [level=4] [ref=e180]
+            - paragraph [ref=e181]: 企业级数据安全，多重加密保护
+        - generic [ref=e182]:
+          - img [ref=e184]
+          - generic [ref=e186]:
+            - heading "实时响应" [level=4] [ref=e187]
+            - paragraph [ref=e188]: 毫秒级响应速度，即时获取分析结果
+        - generic [ref=e189]:
+          - img [ref=e191]
+          - generic [ref=e193]:
+            - heading "持续进化" [level=4] [ref=e194]
+            - paragraph [ref=e195]: 模型持续优化，分析能力不断提升
+      - generic [ref=e198]:
+        - generic [ref=e199]:
+          - img [ref=e201]
+          - generic [ref=e203]: © 2024 OpenFinance. All rights reserved.
+        - generic [ref=e204]:
+          - link "文档" [ref=e205] [cursor=pointer]:
+            - /url: /docs
+          - link "API" [ref=e206] [cursor=pointer]:
+            - /url: /api
+          - link "关于" [ref=e207] [cursor=pointer]:
+            - /url: /about
+```

@@ -1,0 +1,226 @@
+version: "1.0"
+metadata:
+  namespace: openfinance
+  description: OpenFinance 策略类型定义
+
+strategy_types:
+  # ============ 因子策略 ============
+  factor_ranking:
+    display_name: 因子排名策略
+    category: custom
+    description: 基于因子排名的选股策略
+    version: "1.0.0"
+    strategy_category: factor
+    
+    parameters:
+      factor_ids:
+        type: array
+        description: 因子ID列表
+      weights:
+        type: array
+        description: 因子权重
+      top_n:
+        type: integer
+        default: 10
+        description: 选股数量
+      rebalance_freq:
+        type: enum
+        values: [daily, weekly, monthly]
+        default: weekly
+        description: 调仓频率
+    
+    signals:
+      - factor_score_rank
+      - composite_score
+
+  factor_neutral:
+    display_name: 因子中性策略
+    category: custom
+    description: 行业/市值中性化因子策略
+    version: "1.0.0"
+    strategy_category: factor
+    
+    parameters:
+      factor_ids:
+        type: array
+        description: 因子ID列表
+      neutralize_factors:
+        type: array
+        default: [industry, market_cap]
+        description: 中性化因子
+      top_n:
+        type: integer
+        default: 20
+        description: 选股数量
+    
+    signals:
+      - residual_factor_score
+
+  # ============ 动量策略 ============
+  momentum:
+    display_name: 动量策略
+    category: custom
+    description: 价格动量策略
+    version: "1.0.0"
+    strategy_category: momentum
+    
+    parameters:
+      lookback_period:
+        type: integer
+        default: 60
+        description: 回看周期
+      holding_period:
+        type: integer
+        default: 20
+        description: 持仓周期
+      top_n:
+        type: integer
+        default: 10
+        description: 选股数量
+    
+    signals:
+      - momentum_score
+      - price_change_rate
+
+  # ============ 均值回归策略 ============
+  mean_reversion:
+    display_name: 均值回归策略
+    category: custom
+    description: 均值回归策略
+    version: "1.0.0"
+    strategy_category: mean_reversion
+    
+    parameters:
+      lookback_period:
+        type: integer
+        default: 20
+        description: 回看周期
+      entry_threshold:
+        type: float
+        default: -2.0
+        description: 入场阈值(标准差)
+      exit_threshold:
+        type: float
+        default: 0.0
+        description: 出场阈值
+    
+    signals:
+      - zscore
+      - bollinger_position
+
+  # ============ 趋势跟踪策略 ============
+  trend_following:
+    display_name: 趋势跟踪策略
+    category: custom
+    description: 趋势跟踪策略
+    version: "1.0.0"
+    strategy_category: trend
+    
+    parameters:
+      ma_fast:
+        type: integer
+        default: 20
+        description: 快线周期
+      ma_slow:
+        type: integer
+        default: 60
+        description: 慢线周期
+      stop_loss:
+        type: float
+        default: 0.1
+        description: 止损比例
+    
+    signals:
+      - ma_cross
+      - trend_strength
+
+  # ============ 配对交易策略 ============
+  pairs_trading:
+    display_name: 配对交易策略
+    category: custom
+    description: 配对交易策略
+    version: "1.0.0"
+    strategy_category: arbitrage
+    
+    parameters:
+      correlation_threshold:
+        type: float
+        default: 0.8
+        description: 相关性阈值
+      entry_spread:
+        type: float
+        default: 2.0
+        description: 入场价差阈值
+      exit_spread:
+        type: float
+        default: 0.5
+        description: 出场价差阈值
+    
+    signals:
+      - spread_zscore
+      - correlation
+
+  # ============ 多因子策略 ============
+  multi_factor:
+    display_name: 多因子策略
+    category: custom
+    description: 多因子组合策略
+    version: "1.0.0"
+    strategy_category: multi_factor
+    
+    parameters:
+      factor_pool:
+        type: array
+        description: 因子池
+      factor_weights:
+        type: object
+        description: 因子权重配置
+      stock_pool:
+        type: string
+        default: "hs300"
+        description: 股票池
+      top_n:
+        type: integer
+        default: 30
+        description: 选股数量
+      rebalance_freq:
+        type: enum
+        values: [daily, weekly, monthly]
+        default: monthly
+        description: 调仓频率
+    
+    signals:
+      - composite_score
+      - factor_exposure
+      - industry_allocation
+    
+    risk_rules:
+      - max_single_stock_weight
+      - max_industry_weight
+      - min_liquidity
+
+  # ============ Smart Beta策略 ============
+  smart_beta:
+    display_name: Smart Beta策略
+    category: custom
+    description: Smart Beta指数增强策略
+    version: "1.0.0"
+    strategy_category: smart_beta
+    
+    parameters:
+      beta_type:
+        type: enum
+        values: [low_volatility, high_dividend, quality, momentum, value]
+        description: Beta类型
+      benchmark:
+        type: string
+        default: "hs300"
+        description: 基准指数
+      tracking_error:
+        type: float
+        default: 0.05
+        description: 跟踪误差限制
+    
+    signals:
+      - beta_score
+      - tracking_error
