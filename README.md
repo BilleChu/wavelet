@@ -586,3 +586,4 @@ logging.basicConfig(
 Made with ❤️ by OpenFinance Team
 
 </div>
+# wavelet
