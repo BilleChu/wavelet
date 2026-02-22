@@ -15,6 +15,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from openfinance.api.routes.chat import get_chat_service, ChatMessage
+from openfinance.agents.llm.client import get_llm_client
 
 logger = logging.getLogger(__name__)
 
@@ -198,7 +199,7 @@ def build_factor_prompt(description: str, name: Optional[str] = None, context: O
 所有因子使用统一的 ADSKLineModel 数据模型：
 
 ```python
-from openfinance.datacenter.ads import ADSKLineModel
+from openfinance.datacenter.models.analytical import ADSKLineModel
 
 class ADSKLineModel:
     code: str           # 股票代码（6位）
@@ -231,7 +232,7 @@ class ADSKLineModel:
 ```python
 import numpy as np
 from typing import Optional, List
-from openfinance.datacenter.ads import ADSKLineModel
+from openfinance.datacenter.models.analytical import ADSKLineModel
 
 def calculate_factor(klines: List[ADSKLineModel], period: int = 20) -> Optional[float]:
     '''
@@ -277,6 +278,7 @@ async def generate_factor(request: FactorGenerateRequest):
     """
     try:
         service = get_chat_service()
+        llm_client = get_llm_client()
         
         skill = service.get_skill(SKILL_ID)
         if not skill:
@@ -285,15 +287,12 @@ async def generate_factor(request: FactorGenerateRequest):
         prompt = build_factor_prompt(request.description, request.name, request.context)
         
         messages = []
-        system_prompt = service.build_system_prompt(SKILL_ID, skill, include_full_content=True)
+        system_prompt = service.build_system_prompt(SKILL_ID, skill)
         messages.append({"role": "system", "content": system_prompt})
         messages.append({"role": "user", "content": prompt})
         
-        if service.llm_client and hasattr(service.llm_client, "chat"):
-            response = await service.llm_client.chat(messages)
-            content = response if isinstance(response, str) else str(response)
-        else:
-            raise HTTPException(status_code=500, detail="LLM client not configured")
+        response = await llm_client.chat(messages)
+        content = response if isinstance(response, str) else str(response)
         
         code = extract_code_from_response(content)
         factor_info = extract_factor_info(content)
@@ -352,6 +351,7 @@ async def generate_factor_stream(request: FactorGenerateRequest):
     """
     try:
         service = get_chat_service()
+        llm_client = get_llm_client()
         
         skill = service.get_skill(SKILL_ID)
         if not skill:
@@ -365,21 +365,16 @@ async def generate_factor_stream(request: FactorGenerateRequest):
             yield f"data: {json.dumps({'type': 'status', 'status': 'thinking', 'message': '正在分析因子需求...'}, ensure_ascii=False)}\n\n"
             
             messages = []
-            system_prompt = service.build_system_prompt(SKILL_ID, skill, include_full_content=True)
+            system_prompt = service.build_system_prompt(SKILL_ID, skill)
             messages.append({"role": "system", "content": system_prompt})
             messages.append({"role": "user", "content": prompt})
             
-            if service.llm_client and hasattr(service.llm_client, "stream"):
-                yield f"data: {json.dumps({'type': 'status', 'status': 'generating', 'message': '正在生成因子代码...'}, ensure_ascii=False)}\n\n"
-                yield f"data: {json.dumps({'type': 'content_start'}, ensure_ascii=False)}\n\n"
-                
-                async for chunk in service.llm_client.stream(messages):
-                    if isinstance(chunk, str):
-                        full_content += chunk
-                        yield f"data: {json.dumps({'type': 'content', 'content': chunk}, ensure_ascii=False)}\n\n"
-            else:
-                yield f"data: {json.dumps({'type': 'error', 'message': 'LLM client not configured'}, ensure_ascii=False)}\n\n"
-                return
+            yield f"data: {json.dumps({'type': 'status', 'status': 'generating', 'message': '正在生成因子代码...'}, ensure_ascii=False)}\n\n"
+            yield f"data: {json.dumps({'type': 'content_start'}, ensure_ascii=False)}\n\n"
+            
+            async for chunk in llm_client.stream(messages):
+                full_content += chunk
+                yield f"data: {json.dumps({'type': 'content', 'content': chunk}, ensure_ascii=False)}\n\n"
             
             yield f"data: {json.dumps({'type': 'content_end'}, ensure_ascii=False)}\n\n"
             yield f"data: {json.dumps({'type': 'status', 'status': 'parsing', 'message': '正在解析因子信息...'}, ensure_ascii=False)}\n\n"
@@ -450,6 +445,7 @@ async def create_factor(request: FactorCreateRequest):
     """
     try:
         service = get_chat_service()
+        llm_client = get_llm_client()
         
         skill = service.get_skill(SKILL_ID)
         if not skill:
@@ -469,15 +465,12 @@ async def create_factor(request: FactorCreateRequest):
             prompt += f"\n参数配置：{json.dumps(request.parameters, ensure_ascii=False)}"
         
         messages = []
-        system_prompt = service.build_system_prompt(SKILL_ID, skill, include_full_content=True)
+        system_prompt = service.build_system_prompt(SKILL_ID, skill)
         messages.append({"role": "system", "content": system_prompt})
         messages.append({"role": "user", "content": prompt})
         
-        if service.llm_client and hasattr(service.llm_client, "chat"):
-            response = await service.llm_client.chat(messages)
-            content = response if isinstance(response, str) else str(response)
-        else:
-            raise HTTPException(status_code=500, detail="LLM client not configured")
+        response = await llm_client.chat(messages)
+        content = response if isinstance(response, str) else str(response)
         
         code = extract_code_from_response(content)
         factor_id = generate_factor_id(request.name)
@@ -578,7 +571,7 @@ Generated by AI Factor Creator
 
 import numpy as np
 from typing import Optional, List
-from openfinance.datacenter.ads import ADSKLineModel
+from openfinance.datacenter.models.analytical import ADSKLineModel
 from openfinance.quant.factors.base import (
     FactorBase,
     FactorMetadata,

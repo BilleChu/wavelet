@@ -17,7 +17,7 @@ from openfinance.quant.factors.base import (
     FactorCategory,
 )
 from openfinance.quant.factors.registry import register_factor
-from openfinance.datacenter.ads import ADSKLineModel
+from openfinance.datacenter.models.analytical import ADSKLineModel
 from typing import Any
 import numpy as np
 

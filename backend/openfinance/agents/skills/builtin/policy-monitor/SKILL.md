@@ -14,8 +14,8 @@ Monitor and analyze government policies, regulations, and their market impact.
 ### 获取政策分析数据
 
 ```bash
-curl -X GET "http://localhost:19100/api/dataservice/v1/analysis/policy" \
-  -H "X-API-Key: your_api_key" \
+curl -X GET "http://localhost:8000/api/analysis/policy" \
+  -H "X-API-Key: $DATASERVICE_API_KEY" \
   -H "Content-Type: application/json"
 ```
 
@@ -72,10 +72,12 @@ curl -X GET "http://localhost:19100/api/dataservice/v1/analysis/policy" \
 
 ## 脚本调用方式
 
+**注意**: 脚本需要从 backend 目录运行，使用完整相对路径。
+
 ```bash
-python scripts/analyze.py --type monetary
-python scripts/analyze.py --type fiscal
-python scripts/analyze.py --type industrial
+python openfinance/agents/skills/builtin/policy-monitor/scripts/analyze.py --type monetary
+python openfinance/agents/skills/builtin/policy-monitor/scripts/analyze.py --type fiscal
+python openfinance/agents/skills/builtin/policy-monitor/scripts/analyze.py --type industrial
 ```
 
 ## 多轮交互机制
@@ -134,5 +136,5 @@ python scripts/analyze.py --type industrial
 
 ## 相关文档
 
-- [数据服务接口文档](/datacenter/docs)
-- [智能分析服务](/api/dataservice/v1/services/analysis-service)
+- [数据服务接口文档](/api/datacenter)
+- [智能分析服务](/api/analysis-service)

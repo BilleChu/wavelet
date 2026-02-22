@@ -1,0 +1,63 @@
+# Graph Storage Configuration
+# =========================
+# Knowledge graph storage configuration for PostgreSQL + Neo4j
+
+storage:
+  mode: "hybrid"  # postgres | neo4j | hybrid
+  
+  postgres:
+    enabled: true
+    connection:
+      url: "${DATABASE_URL}"
+      pool_size: 10
+      max_overflow: 20
+    tables:
+      entities: "openfinance.metadata_entities"
+      relations: "openfinance.metadata_relations"
+    features:
+      fulltext_search: true
+      jsonb_index: true
+      
+  neo4j:
+    enabled: true
+    connection:
+      uri: "${NEO4J_URI:bolt://localhost:7687}"
+      user: "${NEO4J_USER:neo4j}"
+      password: "${NEO4J_PASSWORD}"
+      database: "openfinance"
+      max_connection_pool_size: 50
+    features:
+      graph_algorithms: true
+      path_finding: true
+      
+sync:
+  mode: "async"  # sync | async
+  retry:
+    max_attempts: 3
+    initial_delay_seconds: 1
+    max_delay_seconds: 30
+    exponential_base: 2
+  queue:
+    max_size: 10000
+    batch_size: 100
+  reconciliation:
+    enabled: true
+    interval_seconds: 3600  # 1 hour
+    
+query:
+  default_timeout_seconds: 30
+  max_path_depth: 5
+  default_limit: 100
+  max_limit: 10000
+  
+routing:
+  # Query type -> preferred backend
+  entity_detail: postgres
+  attribute_filter: postgres
+  fulltext_search: postgres
+  relation_traverse: neo4j
+  path_find: neo4j
+  community_detect: neo4j
+  pagerank: neo4j
+  subgraph: neo4j
+  batch_write: postgres

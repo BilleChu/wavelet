@@ -86,7 +86,7 @@ const TaskChainDetail: React.FC<TaskChainDetailProps> = ({
   useEffect(() => {
     const fetchChainDetail = async () => {
       try {
-        const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:19100';
+        const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
         const response = await fetch(`${API_BASE_URL}/api/datacenter/chains/${chainId}`);
         if (!response.ok) {
           throw new Error('Failed to fetch chain detail');

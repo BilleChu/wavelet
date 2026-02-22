@@ -62,7 +62,13 @@ class ContextBuilder:
         if skills_summary:
             parts.append(f"""# Skills
 
-The following skills extend your capabilities. To use a skill, read its SKILL.md file using the read_file tool.
+The following skills extend your capabilities for specialized tasks. Each skill contains detailed instructions, API endpoints, and analysis frameworks.
+
+**IMPORTANT**: When a user's question matches a skill's description, you MUST:
+1. First use the `read_file` tool to read the skill's SKILL.md file (see location path)
+2. Follow the instructions in the skill to complete the task
+3. Use the APIs and methods documented in the skill
+
 Skills with available="false" need dependencies installed first.
 
 {skills_summary}""")
@@ -82,8 +88,6 @@ You are an intelligent financial assistant with access to tools that allow you t
 - Read, write, and edit files
 - Execute shell commands
 - Search the web and fetch web pages
-- Analyze financial data and investments
-- Use specialized skills for complex tasks
 
 ## Current Time
 {now}

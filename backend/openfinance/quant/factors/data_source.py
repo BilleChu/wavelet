@@ -13,7 +13,7 @@ from typing import Any
 
 import numpy as np
 
-from openfinance.datacenter.ads import ADSKLineModel
+from openfinance.datacenter.models.analytical import ADSKLineModel
 
 logger = logging.getLogger(__name__)
 
@@ -78,7 +78,7 @@ class DataCenterDataSource(KLineDataSource):
         """Get datacenter instance (lazy initialization)."""
         if self._datacenter is None:
             try:
-                from openfinance.datacenter.ads import get_ads_client
+                from openfinance.datacenter.models.analytical import get_ads_client
                 self._datacenter = get_ads_client()
             except ImportError:
                 logger.warning("Datacenter module not available")

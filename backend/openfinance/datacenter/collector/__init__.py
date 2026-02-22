@@ -2,6 +2,11 @@
 Data Collection Center for OpenFinance.
 
 Provides multi-source data acquisition, cleaning, and lifecycle management.
+
+Modules:
+- source: Data source management (configuration, health, registry)
+- core: Base collectors and orchestrator
+- implementations: Specific data collectors
 """
 
 from openfinance.datacenter.collector.core.base_collector import (
@@ -30,7 +35,6 @@ from openfinance.datacenter.collector.core.base_collector import (
     StockQuoteData,
 )
 from openfinance.datacenter.collector.core.orchestrator import CollectionOrchestrator
-from openfinance.datacenter.collector.core.scheduler import CollectionScheduler
 from openfinance.datacenter.collector.implementations import (
     CLSNewsCollector,
     JinshiNewsCollector,
@@ -44,12 +48,27 @@ from openfinance.datacenter.collector.quant_collector import (
     MoneyFlowDataCollector,
     QuantDataCollector,
 )
+from openfinance.datacenter.collector.source import (
+    SourceRegistry,
+    SourceConfig,
+    SourceType,
+    SourceStatus,
+    AuthType,
+    CollectionRule,
+    ConnectionConfig,
+    AuthConfig,
+    RateLimitConfig,
+    RetryConfig,
+    HealthChecker,
+    SourceHealth,
+    HealthCheckResult,
+    get_source_registry,
+)
 
 __all__ = [
     "BaseCollector",
     "CollectionConfig",
     "CollectionResult",
-    "CollectionScheduler",
     "CollectionOrchestrator",
     "CollectionStatus",
     "DataCategory",
@@ -80,4 +99,18 @@ __all__ = [
     "ESGData",
     "SocialMediaData",
     "IndustryChainData",
+    "SourceRegistry",
+    "SourceConfig",
+    "SourceType",
+    "SourceStatus",
+    "AuthType",
+    "CollectionRule",
+    "ConnectionConfig",
+    "AuthConfig",
+    "RateLimitConfig",
+    "RetryConfig",
+    "HealthChecker",
+    "SourceHealth",
+    "HealthCheckResult",
+    "get_source_registry",
 ]

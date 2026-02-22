@@ -1,5 +1,8 @@
 """
 SQLAlchemy models for entities and relations.
+
+Entity and relation types are dynamically loaded from YAML configuration.
+See: domain/metadata/config/entity_types.yaml and relation_types.yaml
 """
 
 from datetime import datetime
@@ -19,73 +22,163 @@ from sqlalchemy import (
     Date,
     Integer,
 )
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from openfinance.infrastructure.database.database import Base
 
 
-VALID_ENTITY_TYPES = [
-    "company", "industry", "concept", "person", "stock", 
-    "fund", "event", "sector", "index", "investor",
-]
+def _get_entity_types_from_registry() -> list[str]:
+    """Dynamically get entity types from metadata registry."""
+    try:
+        from openfinance.domain.metadata.loader import MetadataLoader
+        from openfinance.domain.metadata.registry import EntityTypeRegistry
+        from pathlib import Path
+        
+        if not EntityTypeRegistry.get_type_ids():
+            config_dir = Path(__file__).parent.parent.parent / "domain" / "metadata" / "config"
+            loader = MetadataLoader(config_dir)
+            loader.load_entity_types()
+        
+        types = EntityTypeRegistry.get_type_ids()
+        if types:
+            return types
+    except Exception:
+        pass
+    
+    return [
+        "company", "industry", "concept", "person", "stock",
+        "fund", "event", "sector", "index", "investor",
+    ]
 
-VALID_RELATION_TYPES = [
-    "belongs_to", "has_concept", "competes_with", "supplies_to",
-    "invests_in", "affects", "works_for", "manages", "owns",
-    "parent_of", "subsidiary_of", "ceo_of", "director_of",
-    "founded", "acquired", "merged_with", "operates_in",
-    "regulated_by", "related_to", "listed_on",
-]
 
-ENTITY_TYPE_LABELS: dict[str, str] = {
-    "company": "公司",
-    "industry": "行业",
-    "concept": "概念",
-    "person": "人物",
-    "stock": "股票",
-    "fund": "基金",
-    "event": "事件",
-    "sector": "板块",
-    "index": "指数",
-    "investor": "投资者",
-}
+def _get_relation_types_from_registry() -> list[str]:
+    """Dynamically get relation types from metadata registry."""
+    try:
+        from openfinance.domain.metadata.loader import MetadataLoader
+        from openfinance.domain.metadata.registry import RelationTypeRegistry
+        from pathlib import Path
+        
+        if not RelationTypeRegistry.get_type_ids():
+            config_dir = Path(__file__).parent.parent.parent / "domain" / "metadata" / "config"
+            loader = MetadataLoader(config_dir)
+            loader.load_relation_types()
+        
+        types = RelationTypeRegistry.get_type_ids()
+        if types:
+            return types
+    except Exception:
+        pass
+    
+    return [
+        "belongs_to", "has_concept", "competes_with", "supplies_to",
+        "invests_in", "affects", "works_for", "manages", "owns",
+        "parent_of", "subsidiary_of", "ceo_of", "director_of",
+        "founded", "acquired", "merged_with", "operates_in",
+        "regulated_by", "related_to", "listed_on",
+    ]
 
-RELATION_TYPE_LABELS: dict[str, str] = {
-    "belongs_to": "属于",
-    "has_concept": "具有概念",
-    "competes_with": "竞争",
-    "supplies_to": "供应",
-    "invests_in": "投资",
-    "affects": "影响",
-    "works_for": "任职",
-    "manages": "管理",
-    "owns": "拥有",
-    "parent_of": "母公司",
-    "subsidiary_of": "子公司",
-    "ceo_of": "CEO",
-    "director_of": "董事",
-    "founded": "创立",
-    "acquired": "收购",
-    "merged_with": "合并",
-    "operates_in": "运营于",
-    "regulated_by": "受监管",
-    "related_to": "相关",
-    "listed_on": "上市于",
-}
 
-EntityTypeLiteral = Literal[
-    "company", "industry", "concept", "person", "stock",
-    "fund", "event", "sector", "index", "investor",
-]
+def _get_entity_labels_from_registry() -> dict[str, str]:
+    """Dynamically get entity type labels from metadata registry."""
+    try:
+        from openfinance.domain.metadata.loader import MetadataLoader
+        from openfinance.domain.metadata.registry import EntityTypeRegistry
+        from pathlib import Path
+        
+        if not EntityTypeRegistry.get_type_ids():
+            config_dir = Path(__file__).parent.parent.parent / "domain" / "metadata" / "config"
+            loader = MetadataLoader(config_dir)
+            loader.load_entity_types()
+        
+        labels = {
+            type_id: defn.display_name
+            for type_id, defn in EntityTypeRegistry._types.items()
+        }
+        if labels:
+            return labels
+    except Exception:
+        pass
+    
+    return {
+        "company": "公司",
+        "industry": "行业",
+        "concept": "概念",
+        "person": "人物",
+        "stock": "股票",
+        "fund": "基金",
+        "event": "事件",
+        "sector": "板块",
+        "index": "指数",
+        "investor": "投资者",
+    }
 
-RelationTypeLiteral = Literal[
-    "belongs_to", "has_concept", "competes_with", "supplies_to",
-    "invests_in", "affects", "works_for", "manages", "owns",
-    "parent_of", "subsidiary_of", "ceo_of", "director_of",
-    "founded", "acquired", "merged_with", "operates_in",
-    "regulated_by", "related_to", "listed_on",
-]
+
+def _get_relation_labels_from_registry() -> dict[str, str]:
+    """Dynamically get relation type labels from metadata registry."""
+    try:
+        from openfinance.domain.metadata.loader import MetadataLoader
+        from openfinance.domain.metadata.registry import RelationTypeRegistry
+        from pathlib import Path
+        
+        if not RelationTypeRegistry.get_type_ids():
+            config_dir = Path(__file__).parent.parent.parent / "domain" / "metadata" / "config"
+            loader = MetadataLoader(config_dir)
+            loader.load_relation_types()
+        
+        labels = {
+            type_id: defn.display_name
+            for type_id, defn in RelationTypeRegistry._types.items()
+        }
+        if labels:
+            return labels
+    except Exception:
+        pass
+    
+    return {
+        "belongs_to": "属于",
+        "has_concept": "具有概念",
+        "competes_with": "竞争",
+        "supplies_to": "供应",
+        "invests_in": "投资",
+        "affects": "影响",
+        "works_for": "任职",
+        "manages": "管理",
+        "owns": "拥有",
+        "parent_of": "母公司",
+        "subsidiary_of": "子公司",
+        "ceo_of": "CEO",
+        "director_of": "董事",
+        "founded": "创立",
+        "acquired": "收购",
+        "merged_with": "合并",
+        "operates_in": "运营于",
+        "regulated_by": "受监管",
+        "related_to": "相关",
+        "listed_on": "上市于",
+    }
+
+
+VALID_ENTITY_TYPES = _get_entity_types_from_registry()
+VALID_RELATION_TYPES = _get_relation_types_from_registry()
+ENTITY_TYPE_LABELS = _get_entity_labels_from_registry()
+RELATION_TYPE_LABELS = _get_relation_labels_from_registry()
+
+
+def _create_entity_type_literal():
+    """Dynamically create EntityTypeLiteral."""
+    types = _get_entity_types_from_registry()
+    return Literal[tuple(types)]
+
+
+def _create_relation_type_literal():
+    """Dynamically create RelationTypeLiteral."""
+    types = _get_relation_types_from_registry()
+    return Literal[tuple(types)]
+
+
+EntityTypeLiteral = _create_entity_type_literal()
+RelationTypeLiteral = _create_relation_type_literal()
 
 
 class EntityModel(Base):
@@ -328,17 +421,21 @@ class StockBasicModel(Base):
     __table_args__ = {"schema": "openfinance"}
 
     code: Mapped[str] = mapped_column(String(10), primary_key=True)
-    name: Mapped[str] = mapped_column(String(50), nullable=False)
-    industry: Mapped[str | None] = mapped_column(String(50), nullable=True, index=True)
-    sector: Mapped[str | None] = mapped_column(String(50), nullable=True, index=True)
-    market: Mapped[str | None] = mapped_column(String(20), nullable=True)
-    listing_date: Mapped[datetime | None] = mapped_column(Date, nullable=True)
-    status: Mapped[str] = mapped_column(String(20), default="L")
-    created_at: Mapped[datetime] = mapped_column(
-        TIMESTAMP(timezone=True), default=datetime.utcnow
+    name: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    industry: Mapped[str | None] = mapped_column(String(100), nullable=True, index=True)
+    market: Mapped[str | None] = mapped_column(String(50), nullable=True, index=True)
+    list_date: Mapped[datetime | None] = mapped_column(Date, nullable=True)
+    total_shares: Mapped[float | None] = mapped_column(DECIMAL(20, 4), nullable=True)
+    circulating_shares: Mapped[float | None] = mapped_column(DECIMAL(20, 4), nullable=True)
+    market_cap: Mapped[float | None] = mapped_column(DECIMAL(20, 4), nullable=True)
+    pe_ratio: Mapped[float | None] = mapped_column(DECIMAL(12, 4), nullable=True)
+    pb_ratio: Mapped[float | None] = mapped_column(DECIMAL(12, 4), nullable=True)
+    properties: Mapped[dict | None] = mapped_column(JSONB, nullable=True, default={})
+    collected_at: Mapped[datetime | None] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=True
     )
-    updated_at: Mapped[datetime] = mapped_column(
-        TIMESTAMP(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow
+    updated_at: Mapped[datetime | None] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=True
     )
 
 
@@ -347,15 +444,12 @@ class StockDailyQuoteModel(Base):
 
     __tablename__ = "stock_daily_quote"
     __table_args__ = (
-        UniqueConstraint("code", "trade_date", name="uq_stock_daily"),
-        Index("ix_stock_daily_date", "trade_date"),
         {"schema": "openfinance"},
     )
 
-    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
-    code: Mapped[str] = mapped_column(String(10), nullable=False, index=True)
+    code: Mapped[str] = mapped_column(String(10), primary_key=True, nullable=False)
+    trade_date: Mapped[datetime] = mapped_column(Date, primary_key=True, nullable=False)
     name: Mapped[str | None] = mapped_column(String(50), nullable=True)
-    trade_date: Mapped[datetime] = mapped_column(Date, nullable=False, index=True)
     open: Mapped[float | None] = mapped_column(DECIMAL(12, 4), nullable=True)
     high: Mapped[float | None] = mapped_column(DECIMAL(12, 4), nullable=True)
     low: Mapped[float | None] = mapped_column(DECIMAL(12, 4), nullable=True)
@@ -369,8 +463,8 @@ class StockDailyQuoteModel(Base):
     amplitude: Mapped[float | None] = mapped_column(DECIMAL(8, 4), nullable=True)
     market_cap: Mapped[float | None] = mapped_column(DECIMAL(20, 4), nullable=True)
     circulating_market_cap: Mapped[float | None] = mapped_column(DECIMAL(20, 4), nullable=True)
-    collected_at: Mapped[datetime] = mapped_column(
-        TIMESTAMP(timezone=True), default=datetime.utcnow
+    collected_at: Mapped[datetime | None] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=True
     )
 
 

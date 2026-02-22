@@ -1,6 +1,14 @@
 """
 Built-in Tools for OpenFinance Skills.
 
+_builtin_tools = [
+    read_file,
+    write_file,
+    execute_command,
+    web_search,
+    web_fetch,
+] other tools are prohibitted, because they can do anything
+
 Provides a set of built-in tools for common operations.
 """
 
@@ -71,39 +79,39 @@ async def write_file(path: str, content: str) -> str:
         return f"Error writing file: {str(e)}"
 
 
-@tool(
-    name="list_directory",
-    description="List contents of a directory",
-    parameters={"path": str},
-    required=["path"],
-    category="filesystem",
-)
-async def list_directory(path: str) -> str:
-    """List directory contents.
+# @tool(
+#     name="list_directory",
+#     description="List contents of a directory",
+#     parameters={"path": str},
+#     required=["path"],
+#     category="filesystem",
+# )
+# async def list_directory(path: str) -> str:
+#     """List directory contents.
 
-    Args:
-        path: Path to the directory.
+#     Args:
+#         path: Path to the directory.
 
-    Returns:
-        Directory listing.
-    """
-    dir_path = Path(path)
-    if not dir_path.exists():
-        return f"Error: Directory not found: {path}"
+#     Returns:
+#         Directory listing.
+#     """
+#     dir_path = Path(path)
+#     if not dir_path.exists():
+#         return f"Error: Directory not found: {path}"
 
-    if not dir_path.is_dir():
-        return f"Error: Not a directory: {path}"
+#     if not dir_path.is_dir():
+#         return f"Error: Not a directory: {path}"
 
-    try:
-        items = []
-        for item in sorted(dir_path.iterdir()):
-            item_type = "DIR" if item.is_dir() else "FILE"
-            size = item.stat().st_size if item.is_file() else "-"
-            items.append(f"{item_type:6} {size:>10} {item.name}")
+#     try:
+#         items = []
+#         for item in sorted(dir_path.iterdir()):
+#             item_type = "DIR" if item.is_dir() else "FILE"
+#             size = item.stat().st_size if item.is_file() else "-"
+#             items.append(f"{item_type:6} {size:>10} {item.name}")
 
-        return "\n".join(items)
-    except Exception as e:
-        return f"Error listing directory: {str(e)}"
+#         return "\n".join(items)
+#     except Exception as e:
+#         return f"Error listing directory: {str(e)}"
 
 
 @tool(
@@ -290,119 +298,54 @@ async def web_fetch(
     return f"Error fetching {url}: {result.error}"
 
 
-@tool(
-    name="get_current_time",
-    description="Get the current date and time",
-    parameters={},
-    category="utility",
-)
-async def get_current_time() -> str:
-    """Get current time.
+# @tool(
+#     name="get_current_time",
+#     description="Get the current date and time",
+#     parameters={},
+#     category="utility",
+# )
+# async def get_current_time() -> str:
+#     """Get current time.
 
-    Returns:
-        Current date and time.
-    """
-    return datetime.now().isoformat()
-
-
-@tool(
-    name="calculate",
-    description="Perform a mathematical calculation",
-    parameters={"expression": str},
-    required=["expression"],
-    category="utility",
-)
-async def calculate(expression: str) -> str:
-    """Calculate a mathematical expression.
-
-    Args:
-        expression: Mathematical expression to evaluate.
-
-    Returns:
-        Calculation result.
-    """
-    allowed_chars = set("0123456789+-*/.() ")
-    if not all(c in allowed_chars for c in expression):
-        return "Error: Invalid characters in expression"
-
-    try:
-        result = eval(expression)
-        return str(result)
-    except Exception as e:
-        return f"Error: {str(e)}"
+#     Returns:
+#         Current date and time.
+#     """
+#     return datetime.now().isoformat()
 
 
-@tool(
-    name="stock_price",
-    description="Get current stock price",
-    parameters={"symbol": str},
-    required=["symbol"],
-    category="finance",
-)
-async def stock_price(symbol: str) -> str:
-    """Get stock price.
+# @tool(
+#     name="calculate",
+#     description="Perform a mathematical calculation",
+#     parameters={"expression": str},
+#     required=["expression"],
+#     category="utility",
+# )
+# async def calculate(expression: str) -> str:
+#     """Calculate a mathematical expression.
 
-    Args:
-        symbol: Stock symbol.
+#     Args:
+#         expression: Mathematical expression to evaluate.
 
-    Returns:
-        Stock price information.
-    """
-    mock_prices = {
-        "AAPL": 178.50,
-        "GOOGL": 141.25,
-        "MSFT": 378.90,
-        "600000": 8.52,
-        "000001": 11.85,
-    }
+#     Returns:
+#         Calculation result.
+#     """
+#     allowed_chars = set("0123456789+-*/.() ")
+#     if not all(c in allowed_chars for c in expression):
+#         return "Error: Invalid characters in expression"
 
-    price = mock_prices.get(symbol.upper())
-    if price:
-        return f"{symbol}: ${price:.2f}"
-    return f"Stock price for {symbol} not found"
-
-
-@tool(
-    name="company_info",
-    description="Get company information",
-    parameters={"symbol": str},
-    required=["symbol"],
-    category="finance",
-)
-async def company_info(symbol: str) -> str:
-    """Get company information.
-
-    Args:
-        symbol: Stock symbol.
-
-    Returns:
-        Company information.
-    """
-    mock_info = {
-        "AAPL": "Apple Inc. - Technology company known for iPhone, Mac, and other consumer electronics.",
-        "GOOGL": "Alphabet Inc. - Parent company of Google, offering search, cloud, and AI services.",
-        "MSFT": "Microsoft Corporation - Technology company offering Windows, Azure, and Office products.",
-        "600000": "浦发银行 - 中国股份制商业银行，总部位于上海。",
-        "000001": "平安银行 - 中国股份制商业银行，隶属于平安集团。",
-    }
-
-    info = mock_info.get(symbol.upper())
-    if info:
-        return info
-    return f"Company information for {symbol} not found"
+#     try:
+#         result = eval(expression)
+#         return str(result)
+#     except Exception as e:
+#         return f"Error: {str(e)}"
 
 
 _builtin_tools = [
     read_file,
     write_file,
-    list_directory,
     execute_command,
     web_search,
     web_fetch,
-    get_current_time,
-    calculate,
-    stock_price,
-    company_info,
 ]
 
 

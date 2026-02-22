@@ -438,7 +438,7 @@ async def query_factor_data(request: FactorDataQueryRequest):
 def _calculate_factor_from_definition(factor_def, df: pd.DataFrame, stock_code: str = "000001") -> pd.Series:
     """Calculate factor values from factor definition using registered factor instances."""
     from openfinance.quant.factors.registry import get_factor_registry
-    from openfinance.datacenter.ads import ADSKLineModel
+    from openfinance.datacenter.models.analytical import ADSKLineModel
     from datetime import date
     
     registry = get_factor_registry()
@@ -804,8 +804,8 @@ async def test_factor_value(
     """
     try:
         from openfinance.quant.factors.registry import get_factor_registry
-        from openfinance.datacenter.ads import ADSKLineModel
-        from openfinance.datacenter.ads.service import ADSService
+        from openfinance.datacenter.models.analytical import ADSKLineModel
+        from openfinance.datacenter.models.analytical.service import ADSService
         from datetime import date, timedelta
         import numpy as np
         import asyncio

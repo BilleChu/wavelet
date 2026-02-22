@@ -31,7 +31,7 @@ from openfinance.datacenter.marketplace import (
     get_service_registry,
     get_service_monitor,
 )
-from openfinance.datacenter.ads import (
+from openfinance.datacenter.models.analytical import (
     ADSKLineModel,
     ADSFactorModel,
     ADSNewsModel,

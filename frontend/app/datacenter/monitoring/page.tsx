@@ -67,7 +67,7 @@ export default function MonitoringPage() {
 
   const fetchData = useCallback(async () => {
     try {
-      const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:19100';
+      const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
       const [summaryRes, alertsRes, chainsRes] = await Promise.all([
         fetch(`${API_BASE_URL}/api/datacenter/monitoring/summary`),
         fetch(`${API_BASE_URL}/api/datacenter/monitoring/alerts?limit=20`),
@@ -408,7 +408,7 @@ export default function MonitoringPage() {
               <Button
                 variant="outline"
                 onClick={async () => {
-                  const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:19100';
+                  const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
                   await fetch(`${API_BASE_URL}/api/datacenter/chains/default`, { method: 'POST' });
                   fetchData();
                 }}

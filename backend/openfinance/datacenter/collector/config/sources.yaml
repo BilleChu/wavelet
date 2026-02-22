@@ -1,0 +1,182 @@
+# Data Source Configuration
+# ========================
+# 数据源配置文件
+
+sources:
+  eastmoney:
+    name: "东方财富"
+    type: "api"
+    enabled: true
+    connection:
+      base_url: "https://datacenter.eastmoney.com"
+      timeout: 30.0
+      ssl_verify: true
+    auth:
+      type: "none"
+      headers:
+        User-Agent: "Mozilla/5.0"
+        Referer: "http://quote.eastmoney.com/"
+    rate_limit:
+      requests_per_minute: 100
+    retry:
+      max_retries: 3
+      retry_delay: 1.0
+    tags:
+      - "stock"
+      - "fund"
+      - "market"
+    metadata:
+      description: "东方财富数据中心"
+
+  tushare:
+    name: "Tushare"
+    type: "api"
+    enabled: true
+    connection:
+      base_url: "https://api.tushare.pro"
+      timeout: 30.0
+    auth:
+      type: "api_key"
+      api_key: "${TUSHARE_TOKEN}"
+    rate_limit:
+      requests_per_minute: 200
+    retry:
+      max_retries: 3
+    tags:
+      - "stock"
+      - "fundamental"
+    metadata:
+      description: "Tushare金融数据接口"
+
+  akshare:
+    name: "AKShare"
+    type: "api"
+    enabled: true
+    connection:
+      base_url: "https://akshare.xyz"
+      timeout: 60.0
+    auth:
+      type: "none"
+    rate_limit:
+      requests_per_minute: 50
+    retry:
+      max_retries: 3
+    tags:
+      - "stock"
+      - "macro"
+    metadata:
+      description: "AKShare开源财经数据接口"
+
+  sina:
+    name: "新浪财经"
+    type: "api"
+    enabled: true
+    connection:
+      base_url: "https://hq.sinajs.cn"
+      timeout: 30.0
+    auth:
+      type: "none"
+    rate_limit:
+      requests_per_minute: 100
+    tags:
+      - "realtime"
+      - "quote"
+    metadata:
+      description: "新浪财经实时行情接口"
+
+  jinshi:
+    name: "金十数据"
+    type: "api"
+    enabled: true
+    connection:
+      base_url: "https://flash-api.jin10.com"
+      timeout: 30.0
+    auth:
+      type: "none"
+    rate_limit:
+      requests_per_minute: 100
+    tags:
+      - "news"
+      - "macro"
+    metadata:
+      description: "金十数据快讯接口"
+
+  cls:
+    name: "财联社"
+    type: "api"
+    enabled: true
+    connection:
+      base_url: "https://www.cls.cn/api"
+      timeout: 30.0
+    auth:
+      type: "none"
+    rate_limit:
+      requests_per_minute: 60
+    tags:
+      - "news"
+    metadata:
+      description: "财联社电报接口"
+
+  shfe:
+    name: "上期所"
+    type: "api"
+    enabled: true
+    connection:
+      base_url: "https://www.shfe.com.cn/data"
+      timeout: 60.0
+    auth:
+      type: "none"
+    rate_limit:
+      requests_per_minute: 30
+    tags:
+      - "futures"
+    metadata:
+      description: "上海期货交易所"
+
+  dce:
+    name: "大商所"
+    type: "api"
+    enabled: true
+    connection:
+      base_url: "http://www.dce.com.cn/publicweb/quotesdata"
+      timeout: 60.0
+    auth:
+      type: "none"
+    rate_limit:
+      requests_per_minute: 30
+    tags:
+      - "futures"
+    metadata:
+      description: "大连商品交易所"
+
+  czce:
+    name: "郑商所"
+    type: "api"
+    enabled: true
+    connection:
+      base_url: "http://www.czce.com.cn/portal"
+      timeout: 60.0
+    auth:
+      type: "none"
+    rate_limit:
+      requests_per_minute: 30
+    tags:
+      - "futures"
+    metadata:
+      description: "郑州商品交易所"
+
+  cffex:
+    name: "中金所"
+    type: "api"
+    enabled: true
+    connection:
+      base_url: "http://www.cffex.com.cn/sj"
+      timeout: 60.0
+    auth:
+      type: "none"
+    rate_limit:
+      requests_per_minute: 30
+    tags:
+      - "futures"
+    metadata:
+      description: "中国金融期货交易所"

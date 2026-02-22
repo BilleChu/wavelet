@@ -96,50 +96,66 @@ class MarketRealtimeCollector(MarketDataCollector):
             "f246,f247,f248,f250,f251,f252,f253,f254,f255,f256"
         )
 
-        params = {
-            "pn": "1",
-            "pz": "1000000",
-            "po": "1",
-            "np": "1",
-            "fltt": "2",
-            "invt": "2",
-            "fid": "f3",
-            "fs": fs,
-            "fields": fields,
-        }
-
         url = "http://push2.eastmoney.com/api/qt/clist/get"
-
+        
+        page_size = 100
+        all_records = []
+        page = 1
+        
         async with aiohttp.ClientSession() as session:
-            async with session.get(url, params=params) as response:
-                data = await response.json()
+            while True:
+                params = {
+                    "pn": str(page),
+                    "pz": str(page_size),
+                    "po": "1",
+                    "np": "1",
+                    "fltt": "2",
+                    "invt": "2",
+                    "fid": "f3",
+                    "fs": fs,
+                    "fields": fields,
+                }
+                
+                async with session.get(url, params=params) as response:
+                    data = await response.json()
 
-        records = []
-        if data.get("data") and data["data"].get("diff"):
-            for item in data["data"]["diff"]:
-                try:
-                    record = StockQuoteData(
-                        code=item.get("f12", ""),
-                        name=item.get("f14", ""),
-                        trade_date=datetime.now().strftime("%Y-%m-%d"),
-                        open=safe_float(item.get("f17")),
-                        high=safe_float(item.get("f15")),
-                        low=safe_float(item.get("f16")),
-                        close=safe_float(item.get("f2")),
-                        pre_close=safe_float(item.get("f18")),
-                        change=safe_float(item.get("f4")),
-                        change_pct=safe_float(item.get("f3")),
-                        volume=safe_int(item.get("f5")),
-                        amount=safe_float(item.get("f6")),
-                        turnover_rate=safe_float(item.get("f8")),
-                        amplitude=safe_float(item.get("f7")),
-                    )
-                    records.append(record)
-                except Exception as e:
-                    logger.warning(f"Failed to parse record: {e}")
+                if not data.get("data") or not data["data"].get("diff"):
+                    break
+                
+                total = data["data"].get("total", 0)
+                diff = data["data"].get("diff", [])
+                
+                for item in diff:
+                    try:
+                        record = StockQuoteData(
+                            code=item.get("f12", ""),
+                            name=item.get("f14", ""),
+                            trade_date=datetime.now().strftime("%Y-%m-%d"),
+                            open=safe_float(item.get("f17")),
+                            high=safe_float(item.get("f15")),
+                            low=safe_float(item.get("f16")),
+                            close=safe_float(item.get("f2")),
+                            pre_close=safe_float(item.get("f18")),
+                            change=safe_float(item.get("f4")),
+                            change_pct=safe_float(item.get("f3")),
+                            volume=safe_int(item.get("f5")),
+                            amount=safe_float(item.get("f6")),
+                            turnover_rate=safe_float(item.get("f8")),
+                            amplitude=safe_float(item.get("f7")),
+                        )
+                        all_records.append(record)
+                    except Exception as e:
+                        logger.warning(f"Failed to parse record: {e}")
+                
+                logger.info(f"Page {page}: collected {len(diff)} records, total: {len(all_records)}/{total}")
+                
+                if len(all_records) >= total:
+                    break
+                
+                page += 1
 
-        logger.info(f"Collected {len(records)} records for market {market}")
-        return records
+        logger.info(f"Collected {len(all_records)} records for market {market}")
+        return all_records
 
 
 class StockRealtimeCollector(MarketDataCollector):

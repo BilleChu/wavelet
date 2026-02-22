@@ -14,7 +14,7 @@ from typing import Any, Tuple
 
 import numpy as np
 
-from openfinance.datacenter.ads import ADSKLineModel
+from openfinance.datacenter.models.analytical import ADSKLineModel
 from ..base import (
     FactorBase,
     FactorMetadata,

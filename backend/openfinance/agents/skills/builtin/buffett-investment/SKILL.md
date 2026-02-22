@@ -14,8 +14,8 @@ Warren Buffett-style investment analysis methodology for evaluating potential in
 ### 获取公司洞察数据
 
 ```bash
-curl -X GET "http://localhost:19100/api/dataservice/v1/analysis/company/600519" \
-  -H "X-API-Key: your_api_key" \
+curl -X GET "http://localhost:8000/api/analysis/company/600519" \
+  -H "X-API-Key: $DATASERVICE_API_KEY" \
   -H "Content-Type: application/json"
 ```
 
@@ -57,8 +57,8 @@ curl -X GET "http://localhost:19100/api/dataservice/v1/analysis/company/600519" 
 ### 查询知识图谱实体
 
 ```bash
-curl -X GET "http://localhost:19100/api/dataservice/v1/graph/entities?keywords=茅台" \
-  -H "X-API-Key: your_api_key"
+curl -X GET "http://localhost:8000/api/graph/entities?keywords=茅台" \
+  -H "X-API-Key: $DATASERVICE_API_KEY"
 ```
 
 ### 错误处理
@@ -71,28 +71,30 @@ curl -X GET "http://localhost:19100/api/dataservice/v1/graph/entities?keywords=�
 
 ## 脚本调用方式
 
+**注意**: 脚本需要从 backend 目录运行，使用完整相对路径。
+
 ### 完整分析
 
 ```bash
-python scripts/analyze.py --code 600519.SH --analysis full
+python openfinance/agents/skills/builtin/buffett-investment/scripts/analyze.py --code 600519.SH --analysis full
 ```
 
 ### 护城河分析
 
 ```bash
-python scripts/analyze.py --code 600519.SH --analysis moat
+python openfinance/agents/skills/builtin/buffett-investment/scripts/analyze.py --code 600519.SH --analysis moat
 ```
 
 ### 内在价值计算
 
 ```bash
-python scripts/analyze.py --code 600519.SH --analysis intrinsic
+python openfinance/agents/skills/builtin/buffett-investment/scripts/analyze.py --code 600519.SH --analysis intrinsic
 ```
 
 ### 管理层评估
 
 ```bash
-python scripts/analyze.py --code 600519.SH --analysis management
+python openfinance/agents/skills/builtin/buffett-investment/scripts/analyze.py --code 600519.SH --analysis management
 ```
 
 ## 多轮交互机制
@@ -236,6 +238,6 @@ Target: > 25% margin of safety
 
 ## 相关文档
 
-- [数据服务接口文档](/datacenter/docs)
-- [智能分析服务](/api/dataservice/v1/services/analysis-service)
-- [知识图谱服务](/api/dataservice/v1/services/graph-service)
+- [数据服务接口文档](/api/datacenter)
+- [智能分析服务](/api/analysis-service)
+- [知识图谱服务](/api/graph-service)

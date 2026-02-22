@@ -2,10 +2,12 @@
 Extended Data Center API Routes.
 
 Provides additional endpoints for:
-- Task chain management
+- Task DAG management (using unified DAGEngine)
 - Canvas visualization data
 - Monitoring and alerts
 - Company preloading
+
+This module uses the unified DAGEngine from task/dag_engine.py
 """
 
 from datetime import datetime
@@ -15,17 +17,17 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
 from openfinance.infrastructure.logging.logging_config import get_logger
-from openfinance.datacenter.task.chain_engine import (
-    TaskChainEngine,
-    TaskChain,
-    ChainNode,
-    ChainStatus,
+from openfinance.datacenter.task.dag_engine import (
+    DAGEngine,
+    DAG,
+    DAGBuilder,
+    DAGNode,
+    TaskStatus,
+    TaskPriority,
     NodeType,
-    create_default_chain,
 )
 from openfinance.datacenter.task.monitoring import (
     TaskMonitor,
-    MonitoringConfig,
     AlertSeverity,
     AlertStatus,
     MetricType,
@@ -34,7 +36,6 @@ from openfinance.datacenter.task.monitoring import (
 from openfinance.datacenter.task.enhanced_scheduler import (
     EnhancedScheduler,
     ScheduleConfig,
-    TaskPriority,
     ScheduleType,
     create_default_scheduled_tasks,
 )
@@ -45,17 +46,17 @@ logger = get_logger(__name__)
 
 router = APIRouter(prefix="/datacenter", tags=["datacenter-extended"])
 
-_chain_engine: TaskChainEngine | None = None
+_dag_engine: DAGEngine | None = None
 _monitor: TaskMonitor | None = None
 _scheduler: EnhancedScheduler | None = None
 
 
-def get_chain_engine() -> TaskChainEngine:
-    """Get or create the chain engine singleton."""
-    global _chain_engine
-    if _chain_engine is None:
-        _chain_engine = TaskChainEngine()
-    return _chain_engine
+def get_dag_engine() -> DAGEngine:
+    """Get or create the DAG engine singleton."""
+    global _dag_engine
+    if _dag_engine is None:
+        _dag_engine = DAGEngine()
+    return _dag_engine
 
 
 def get_monitor() -> TaskMonitor:
@@ -78,20 +79,19 @@ def get_scheduler() -> EnhancedScheduler:
     return _scheduler
 
 
-class CreateChainRequest(BaseModel):
-    """Request to create a new task chain."""
+class CreateDAGRequest(BaseModel):
+    """Request to create a new DAG."""
     
-    name: str = Field(..., description="Chain name")
-    description: str = Field(default="", description="Chain description")
-    nodes: list[dict[str, Any]] = Field(default_factory=list, description="Chain nodes")
-    edges: list[dict[str, str]] = Field(default_factory=list, description="Chain edges")
+    name: str = Field(..., description="DAG name")
+    description: str = Field(default="", description="DAG description")
+    tasks: list[dict[str, Any]] = Field(default_factory=list, description="DAG tasks")
 
 
-class ExecuteChainRequest(BaseModel):
-    """Request to execute a chain."""
+class ExecuteDAGRequest(BaseModel):
+    """Request to execute a DAG."""
     
-    chain_id: str = Field(..., description="Chain ID to execute")
-    stop_on_failure: bool = Field(default=True, description="Stop on first failure")
+    dag_id: str = Field(..., description="DAG ID to execute")
+    context: dict[str, Any] | None = Field(default=None, description="Execution context")
 
 
 class CreateAlertRuleRequest(BaseModel):
@@ -116,105 +116,119 @@ class CreateScheduleRequest(BaseModel):
     enabled: bool = Field(default=True, description="Whether task is enabled")
 
 
-# ==================== Chain Management ====================
+# ==================== DAG Management ====================
 
-@router.get("/chains")
-async def list_chains() -> dict[str, Any]:
-    """List all task chains."""
-    engine = get_chain_engine()
-    chains = engine.list_chains()
+@router.get("/dags")
+async def list_dags() -> dict[str, Any]:
+    """List all DAGs."""
+    engine = get_dag_engine()
+    dags = engine.list_dags()
     
     return {
-        "chains": chains,
-        "total": len(chains),
+        "success": True,
+        "dags": dags,
+        "total": len(dags),
     }
 
 
-@router.post("/chains")
-async def create_chain(request: CreateChainRequest) -> dict[str, Any]:
-    """Create a new task chain."""
-    engine = get_chain_engine()
+@router.post("/dags")
+async def create_dag(request: CreateDAGRequest) -> dict[str, Any]:
+    """Create a new DAG."""
+    engine = get_dag_engine()
     
-    chain = TaskChain(
-        name=request.name,
-        description=request.description,
-    )
+    builder = DAGBuilder(request.name)
+    if request.description:
+        builder.description(request.description)
     
-    for node_data in request.nodes:
-        node = ChainNode(
-            node_id=node_data.get("node_id", ""),
-            name=node_data.get("name", ""),
-            node_type=NodeType(node_data.get("node_type", "task")),
-            task_type=node_data.get("task_type"),
-            task_params=node_data.get("params", {}),
-        )
-        engine.add_node(chain, node)
-    
-    for edge_data in request.edges:
-        engine.add_edge(
-            chain,
-            edge_data.get("source_id", ""),
-            edge_data.get("target_id", ""),
-            label=edge_data.get("label", ""),
+    for task_data in request.tasks:
+        priority = TaskPriority(task_data.get("priority", 2))
+        builder.add_task(
+            task_id=task_data.get("task_id", ""),
+            name=task_data.get("name", ""),
+            task_type=task_data.get("task_type", "generic"),
+            params=task_data.get("params", {}),
+            depends_on=task_data.get("depends_on", []),
+            priority=priority,
+            timeout=task_data.get("timeout", 300.0),
         )
     
-    return chain.to_dict()
+    dag = builder.build()
+    
+    try:
+        engine.register_dag(dag)
+        return {
+            "success": True,
+            "dagId": dag.dag_id,
+            "name": dag.name,
+            "totalNodes": len(dag.nodes),
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
-@router.get("/chains/{chain_id}")
-async def get_chain(chain_id: str) -> dict[str, Any]:
-    """Get chain details."""
-    engine = get_chain_engine()
-    chain = engine.get_chain(chain_id)
+@router.get("/dags/{dag_id}")
+async def get_dag(dag_id: str) -> dict[str, Any]:
+    """Get DAG details."""
+    engine = get_dag_engine()
+    status = engine.get_dag_status(dag_id)
     
-    if not chain:
-        raise HTTPException(status_code=404, detail=f"Chain not found: {chain_id}")
-    
-    return chain.to_dict()
-
-
-@router.post("/chains/{chain_id}/execute")
-async def execute_chain(chain_id: str) -> dict[str, Any]:
-    """Execute a task chain."""
-    engine = get_chain_engine()
-    chain = engine.get_chain(chain_id)
-    
-    if not chain:
-        raise HTTPException(status_code=404, detail=f"Chain not found: {chain_id}")
-    
-    result = await engine.execute_chain(chain)
+    if "error" in status:
+        raise HTTPException(status_code=404, detail=status["error"])
     
     return {
-        "chain_id": result.chain_id,
-        "status": result.status.value if hasattr(result.status, 'value') else str(result.status),
-        "nodes_executed": result.nodes_executed,
-        "nodes_succeeded": result.nodes_succeeded,
-        "nodes_failed": result.nodes_failed,
-        "total_duration_ms": result.total_duration_ms,
-        "errors": result.errors,
+        "success": True,
+        **status,
     }
 
 
-@router.post("/chains/default")
-async def create_default_task_chain() -> dict[str, Any]:
-    """Create the default daily data collection chain."""
-    chain = create_default_chain()
-    engine = get_chain_engine()
-    engine._chains[chain.chain_id] = chain
+@router.post("/dags/{dag_id}/execute")
+async def execute_dag(dag_id: str, request: ExecuteDAGRequest | None = None) -> dict[str, Any]:
+    """Execute a DAG."""
+    engine = get_dag_engine()
     
-    return chain.to_dict()
+    dag = engine.get_dag(dag_id)
+    if not dag:
+        raise HTTPException(status_code=404, detail=f"DAG not found: {dag_id}")
+    
+    context = request.context if request else {}
+    
+    result = await engine.execute_dag(dag_id, context)
+    
+    return {
+        "success": True,
+        **result,
+    }
 
 
-@router.delete("/chains/{chain_id}")
-async def cancel_chain(chain_id: str) -> dict[str, Any]:
-    """Cancel a running chain."""
-    engine = get_chain_engine()
-    success = await engine.cancel_chain(chain_id)
+@router.get("/dags/{dag_id}/canvas")
+async def get_dag_canvas(dag_id: str) -> dict[str, Any]:
+    """Get Canvas data for a specific DAG."""
+    engine = get_dag_engine()
+    canvas_data = engine.get_dag_canvas(dag_id)
     
-    if not success:
-        raise HTTPException(status_code=404, detail=f"Chain not found: {chain_id}")
+    if "error" in canvas_data:
+        raise HTTPException(status_code=404, detail=canvas_data["error"])
     
-    return {"success": True, "message": f"Chain {chain_id} cancelled"}
+    return {
+        "success": True,
+        **canvas_data,
+    }
+
+
+@router.get("/dags/{dag_id}/mermaid")
+async def get_dag_mermaid(dag_id: str) -> dict[str, Any]:
+    """Get Mermaid diagram for a specific DAG."""
+    engine = get_dag_engine()
+    dag = engine.get_dag(dag_id)
+    
+    if not dag:
+        raise HTTPException(status_code=404, detail=f"DAG not found: {dag_id}")
+    
+    return {
+        "success": True,
+        "dagId": dag_id,
+        "mermaid": dag.to_mermaid(),
+    }
 
 
 # ==================== Canvas Data ====================
@@ -222,95 +236,36 @@ async def cancel_chain(chain_id: str) -> dict[str, Any]:
 @router.get("/canvas/data")
 async def get_canvas_data() -> dict[str, Any]:
     """Get data for Canvas visualization."""
-    engine = get_chain_engine()
+    engine = get_dag_engine()
     monitor = get_monitor()
     
-    chains = engine.list_chains()
+    dags = engine.list_dags()
     
-    nodes = []
-    edges = []
+    all_nodes = []
+    all_edges = []
     
-    for chain_data in chains:
-        chain_id = chain_data.get("chain_id", "")
-        chain_nodes = chain_data.get("nodes", {})
-        chain_edges = chain_data.get("edges", [])
+    for dag_data in dags:
+        dag_id = dag_data.get("dagId", dag_data.get("id", ""))
+        canvas = engine.get_dag_canvas(dag_id)
         
-        for node_id, node in chain_nodes.items():
-            nodes.append({
-                "id": f"{chain_id}_{node_id}",
-                "type": "taskNode",
-                "data": {
-                    "label": node.get("name", ""),
-                    "taskType": node.get("task_type", ""),
-                    "status": node.get("status", "pending"),
-                    "chainId": chain_id,
-                },
-                "position": {"x": 0, "y": 0},
-            })
-        
-        for edge in chain_edges:
-            edges.append({
-                "id": edge.get("edge_id", ""),
-                "source": f"{chain_id}_{edge.get('source_id', '')}",
-                "target": f"{chain_id}_{edge.get('target_id', '')}",
-                "animated": True,
-                "label": edge.get("label", ""),
-            })
+        if "error" not in canvas:
+            for node in canvas.get("nodes", []):
+                node["id"] = f"{dag_id}_{node['id']}"
+                node["data"]["dagId"] = dag_id
+                all_nodes.append(node)
+            
+            for edge in canvas.get("edges", []):
+                edge["source"] = f"{dag_id}_{edge['source']}"
+                edge["target"] = f"{dag_id}_{edge['target']}"
+                all_edges.append(edge)
     
     summary = monitor.get_summary()
     
     return {
-        "nodes": nodes,
-        "edges": edges,
-        "chains": chains,
+        "nodes": all_nodes,
+        "edges": all_edges,
+        "dags": dags,
         "summary": summary,
-    }
-
-
-@router.get("/canvas/chain/{chain_id}")
-async def get_chain_canvas_data(chain_id: str) -> dict[str, Any]:
-    """Get Canvas data for a specific chain."""
-    engine = get_chain_engine()
-    chain = engine.get_chain(chain_id)
-    
-    if not chain:
-        raise HTTPException(status_code=404, detail=f"Chain not found: {chain_id}")
-    
-    chain_dict = chain.to_dict()
-    
-    nodes = []
-    edges = []
-    
-    for node_id, node in chain_dict.get("nodes", {}).items():
-        nodes.append({
-            "id": node_id,
-            "type": "taskNode",
-            "data": {
-                "label": node.get("name", ""),
-                "taskType": node.get("task_type", ""),
-                "status": node.get("status", "pending"),
-            },
-            "position": {"x": 0, "y": 0},
-        })
-    
-    for edge in chain_dict.get("edges", []):
-        edges.append({
-            "id": edge.get("edge_id", ""),
-            "source": edge.get("source_id", ""),
-            "target": edge.get("target_id", ""),
-            "animated": True,
-            "label": edge.get("label", ""),
-        })
-    
-    data_targets = chain_dict.get("data_targets", [])
-    
-    return {
-        "chain_id": chain_id,
-        "name": chain.name,
-        "nodes": nodes,
-        "edges": edges,
-        "data_targets": data_targets,
-        "status": chain.status.value if hasattr(chain.status, 'value') else str(chain.status),
     }
 
 
@@ -521,10 +476,7 @@ async def preload_companies() -> dict[str, Any]:
             "stats": stats,
         }
     except Exception as e:
-        logger.error_with_context(
-            "Company preload failed",
-            context={"error": str(e)}
-        )
+        logger.error(f"Company preload failed: {e}")
         return {
             "success": False,
             "message": f"Company preload failed: {str(e)}",
@@ -561,13 +513,77 @@ async def collect_stock_data(
             "stats": stats,
         }
     except Exception as e:
-        logger.error_with_context(
-            "Stock data collection failed",
-            context={"error": str(e)}
-        )
+        logger.error(f"Stock data collection failed: {e}")
         return {
             "success": False,
             "message": f"Stock data collection failed: {str(e)}",
         }
     finally:
         await collector.close()
+
+
+@router.get("/stocks")
+async def list_stocks(
+    limit: int = 100,
+    offset: int = 0,
+    industry: str | None = None,
+    search: str | None = None,
+) -> dict[str, Any]:
+    """List stocks from database."""
+    try:
+        from sqlalchemy import select
+        from openfinance.datacenter.models.orm import StockBasicModel
+        from openfinance.infrastructure.database.database import async_session_maker
+        
+        async with async_session_maker() as session:
+            query = select(StockBasicModel)
+            
+            if industry:
+                query = query.where(StockBasicModel.industry == industry)
+            
+            if search:
+                query = query.where(
+                    (StockBasicModel.code.contains(search)) |
+                    (StockBasicModel.name.contains(search))
+                )
+            
+            query = query.order_by(StockBasicModel.code).limit(limit).offset(offset)
+            
+            result = await session.execute(query)
+            stocks = result.scalars().all()
+            
+            count_query = select(StockBasicModel)
+            if industry:
+                count_query = count_query.where(StockBasicModel.industry == industry)
+            if search:
+                count_query = count_query.where(
+                    (StockBasicModel.code.contains(search)) |
+                    (StockBasicModel.name.contains(search))
+                )
+            
+            count_result = await session.execute(count_query)
+            total = len(count_result.scalars().all())
+            
+            return {
+                "stocks": [
+                    {
+                        "code": stock.code,
+                        "name": stock.name,
+                        "industry": getattr(stock, 'industry', None),
+                        "market": getattr(stock, 'market', None),
+                        "listing_date": stock.listing_date.isoformat() if stock.listing_date else None,
+                    }
+                    for stock in stocks
+                ],
+                "total": total,
+                "limit": limit,
+                "offset": offset,
+            }
+    except Exception as e:
+        logger.warning(f"Database not available: {e}")
+        return {
+            "stocks": [],
+            "total": 0,
+            "limit": limit,
+            "offset": offset,
+        }

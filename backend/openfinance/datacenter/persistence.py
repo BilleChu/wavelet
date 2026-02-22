@@ -1,69 +1,219 @@
 """
-Data Persistence Module.
+Configurable Data Persistence Module.
 
-Provides database persistence for collected data with:
-- Batch insert support
-- Transaction management
-- Error retry with exponential backoff
-- Data validation before insert
-- Comprehensive logging
+Provides:
+- Table configuration via YAML/JSON
+- Dynamic field mapping
+- Pluggable storage strategies
+- UPSERT/INSERT/APPEND modes
 """
+
+from __future__ import annotations
 
 import logging
 import os
 import asyncio
+from abc import ABC, abstractmethod
+from dataclasses import dataclass, field
 from datetime import date, datetime
-from typing import Any, TypeVar, Generic
+from enum import Enum
 from functools import wraps
+from pathlib import Path
+from typing import Any, Callable, Generic, TypeVar
 
+import yaml
+from pydantic import BaseModel, Field
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 from sqlalchemy.exc import IntegrityError, OperationalError, DBAPIError
 
 logger = logging.getLogger(__name__)
 
-DATABASE_URL = os.getenv(
-    "DATABASE_URL",
-    "postgresql+asyncpg://openfinance:openfinance@localhost:5432/openfinance?client_encoding=utf8"
-)
-
 T = TypeVar('T')
 
-MAX_RETRIES = 3
-RETRY_DELAY = 1.0
-BATCH_SIZE = 500
+
+class SaveMode(str, Enum):
+    """Data save mode."""
+    INSERT = "insert"
+    UPSERT = "upsert"
+    APPEND = "append"
+    REPLACE = "replace"
 
 
-def _to_dict(obj: Any) -> dict[str, Any]:
-    """Convert Pydantic model or dict to dict."""
-    if hasattr(obj, 'model_dump'):
-        return obj.model_dump()
-    elif hasattr(obj, 'dict'):
-        return obj.dict()
-    elif isinstance(obj, dict):
-        return obj
-    else:
-        return {}
+class FieldType(str, Enum):
+    """Field data types."""
+    STRING = "string"
+    INTEGER = "integer"
+    FLOAT = "float"
+    DATE = "date"
+    DATETIME = "datetime"
+    BOOLEAN = "boolean"
+    JSON = "json"
 
 
-def _parse_date(value: Any) -> date | None:
-    """Parse date from various formats."""
-    if value is None:
-        return None
-    if isinstance(value, date):
-        return value
-    if isinstance(value, str):
-        try:
-            return datetime.strptime(value, "%Y-%m-%d").date()
-        except ValueError:
+@dataclass
+class FieldConfig:
+    """Configuration for a single field."""
+    
+    name: str
+    source_fields: list[str] = field(default_factory=list)
+    data_type: FieldType = FieldType.STRING
+    required: bool = False
+    default: Any = None
+    transform: Callable[[Any], Any] | None = None
+    
+    def get_value(self, data: dict[str, Any]) -> Any:
+        """Extract value from data using source fields."""
+        for source_field in self.source_fields or [self.name]:
+            if source_field in data:
+                value = data[source_field]
+                break
+        else:
+            value = data.get(self.name)
+        
+        if value is None:
+            value = self.default
+        
+        if value is not None and self.transform:
+            value = self.transform(value)
+        
+        return self._convert_type(value)
+    
+    def _convert_type(self, value: Any) -> Any:
+        """Convert value to target type."""
+        if value is None:
+            return None
+        
+        if self.data_type == FieldType.DATE:
+            if isinstance(value, date):
+                return value
+            if isinstance(value, str):
+                for fmt in ["%Y-%m-%d", "%Y%m%d", "%Y/%m/%d"]:
+                    try:
+                        return datetime.strptime(value, fmt).date()
+                    except ValueError:
+                        continue
+            return None
+        
+        if self.data_type == FieldType.DATETIME:
+            if isinstance(value, datetime):
+                return value
+            if isinstance(value, str):
+                try:
+                    return datetime.fromisoformat(value)
+                except ValueError:
+                    pass
+            return None
+        
+        if self.data_type == FieldType.FLOAT:
             try:
-                return datetime.strptime(value, "%Y%m%d").date()
-            except ValueError:
+                return float(value)
+            except (TypeError, ValueError):
                 return None
-    return None
+        
+        if self.data_type == FieldType.INTEGER:
+            try:
+                return int(value)
+            except (TypeError, ValueError):
+                return None
+        
+        if self.data_type == FieldType.BOOLEAN:
+            if isinstance(value, bool):
+                return value
+            if isinstance(value, str):
+                return value.lower() in ("true", "1", "yes")
+            return bool(value)
+        
+        return str(value) if value is not None else None
 
 
-def with_retry(max_retries: int = MAX_RETRIES, delay: float = RETRY_DELAY):
+class TableConfig(BaseModel):
+    """Configuration for a database table."""
+    
+    table_name: str = Field(..., description="Target table name")
+    schema_name: str = Field(default="openfinance", description="Schema name")
+    
+    primary_key: list[str] = Field(default_factory=lambda: ["id"], description="Primary key columns")
+    unique_keys: list[list[str]] = Field(default_factory=list, description="Unique constraint columns")
+    
+    fields: dict[str, dict[str, Any]] = Field(default_factory=dict, description="Field configurations")
+    
+    save_mode: SaveMode = Field(default=SaveMode.UPSERT, description="Save mode")
+    batch_size: int = Field(default=500, description="Batch size for inserts")
+    
+    create_if_not_exists: bool = Field(default=True, description="Create table if not exists")
+    auto_ddl: bool = Field(default=False, description="Auto-generate DDL from field configs")
+    
+    pre_save_hook: str | None = Field(default=None, description="Pre-save hook function path")
+    post_save_hook: str | None = Field(default=None, description="Post-save hook function path")
+    
+    def get_full_table_name(self) -> str:
+        """Get fully qualified table name."""
+        return f"{self.schema_name}.{self.table_name}"
+    
+    def get_field_config(self, field_name: str) -> FieldConfig:
+        """Get field configuration."""
+        field_data = self.fields.get(field_name, {})
+        return FieldConfig(
+            name=field_name,
+            source_fields=field_data.get("source_fields", []),
+            data_type=FieldType(field_data.get("type", "string")),
+            required=field_data.get("required", False),
+            default=field_data.get("default"),
+        )
+    
+    def get_upsert_conflict_clause(self) -> str:
+        """Generate ON CONFLICT clause for UPSERT."""
+        if not self.unique_keys:
+            conflict_cols = ", ".join(self.primary_key)
+        else:
+            conflict_cols = ", ".join(self.unique_keys[0])
+        
+        return f"ON CONFLICT ({conflict_cols})"
+
+
+class PersistenceConfig(BaseModel):
+    """Complete persistence configuration."""
+    
+    database_url: str = Field(
+        default_factory=lambda: os.getenv(
+            "DATABASE_URL",
+            "postgresql+asyncpg://openfinance:openfinance@localhost:5432/openfinance?client_encoding=utf8"
+        ),
+        description="Database connection URL"
+    )
+    
+    pool_size: int = Field(default=10, description="Connection pool size")
+    max_overflow: int = Field(default=20, description="Max overflow connections")
+    pool_recycle: int = Field(default=3600, description="Pool recycle time in seconds")
+    
+    default_batch_size: int = Field(default=500, description="Default batch size")
+    max_retries: int = Field(default=3, description="Max retry attempts")
+    retry_delay: float = Field(default=1.0, description="Retry delay in seconds")
+    
+    tables: dict[str, TableConfig] = Field(
+        default_factory=dict,
+        description="Table configurations"
+    )
+    
+    @classmethod
+    def from_yaml(cls, path: str | Path) -> "PersistenceConfig":
+        """Load configuration from YAML file."""
+        with open(path, "r", encoding="utf-8") as f:
+            data = yaml.safe_load(f)
+        
+        tables = {}
+        for table_name, table_data in data.get("tables", {}).items():
+            tables[table_name] = TableConfig(table_name=table_name, **table_data)
+        
+        return cls(
+            database_url=data.get("database_url"),
+            pool_size=data.get("pool_size", 10),
+            tables=tables,
+        )
+
+
+def with_retry(max_retries: int = 3, delay: float = 1.0):
     """Decorator for retry logic with exponential backoff."""
     def decorator(func):
         @wraps(func)
@@ -88,552 +238,381 @@ def with_retry(max_retries: int = MAX_RETRIES, delay: float = RETRY_DELAY):
     return decorator
 
 
-engine = create_async_engine(
-    DATABASE_URL,
-    echo=False,
-    pool_size=10,
-    max_overflow=20,
-    pool_pre_ping=True,
-    pool_recycle=3600,
-)
-
-async_session_maker = async_sessionmaker(
-    engine,
-    expire_on_commit=False,
-)
-
-
-class DataPersistence:
-    """Data persistence handler for collected data.
+class ConfigurablePersistence:
+    """
+    Configurable data persistence handler.
     
     Features:
-    - Batch insert with configurable batch size
-    - UPSERT strategy to handle duplicates
-    - Transaction management with rollback on error
-    - Retry logic for transient failures
-    - Comprehensive logging for audit trail
+    - Table configuration via config objects
+    - Dynamic field mapping
+    - Multiple save modes (INSERT, UPSERT, APPEND)
+    - Batch processing
+    - Retry logic
+    - Pre/post save hooks
+    
+    Usage:
+        config = PersistenceConfig.from_yaml("persistence.yaml")
+        persistence = ConfigurablePersistence(config)
+        
+        # Save data
+        await persistence.save("stock_daily_quote", quotes)
     """
     
-    def __init__(self, batch_size: int = BATCH_SIZE) -> None:
-        self.engine = engine
-        self.session_maker = async_session_maker
-        self.batch_size = batch_size
+    def __init__(
+        self,
+        config: PersistenceConfig | None = None,
+        table_configs: dict[str, TableConfig] | None = None,
+    ) -> None:
+        self._config = config or PersistenceConfig()
+        
+        if table_configs:
+            self._config.tables.update(table_configs)
+        
+        self._engine = create_async_engine(
+            self._config.database_url,
+            echo=False,
+            pool_size=self._config.pool_size,
+            max_overflow=self._config.max_overflow,
+            pool_pre_ping=True,
+            pool_recycle=self._config.pool_recycle,
+        )
+        
+        self._session_maker = async_sessionmaker(
+            self._engine,
+            expire_on_commit=False,
+        )
+        
+        self._register_builtin_tables()
+    
+    def _register_builtin_tables(self) -> None:
+        """Register built-in table configurations."""
+        builtin_tables = {
+            "stock_daily_quote": TableConfig(
+                table_name="stock_daily_quote",
+                primary_key=["code", "trade_date"],
+                unique_keys=[["code", "trade_date"]],
+                fields={
+                    "code": {"type": "string", "required": True, "source_fields": ["code", "symbol"]},
+                    "name": {"type": "string", "source_fields": ["name", "stock_name"]},
+                    "trade_date": {"type": "date", "required": True, "source_fields": ["trade_date", "date"]},
+                    "open": {"type": "float"},
+                    "high": {"type": "float"},
+                    "low": {"type": "float"},
+                    "close": {"type": "float"},
+                    "volume": {"type": "float"},
+                    "amount": {"type": "float"},
+                    "change": {"type": "float", "source_fields": ["change", "chg"]},
+                    "change_pct": {"type": "float", "source_fields": ["change_pct", "pct_chg"]},
+                    "turnover_rate": {"type": "float"},
+                    "market_cap": {"type": "float"},
+                },
+                save_mode=SaveMode.UPSERT,
+            ),
+            "stock_basic": TableConfig(
+                table_name="stock_basic",
+                primary_key=["code"],
+                unique_keys=[["code"]],
+                fields={
+                    "code": {"type": "string", "required": True},
+                    "name": {"type": "string", "required": True},
+                    "industry": {"type": "string"},
+                    "market": {"type": "string"},
+                    "list_date": {"type": "date"},
+                    "market_cap": {"type": "float"},
+                    "pe_ratio": {"type": "float"},
+                    "pb_ratio": {"type": "float"},
+                },
+                save_mode=SaveMode.UPSERT,
+            ),
+            "news": TableConfig(
+                table_name="news",
+                primary_key=["news_id"],
+                unique_keys=[["news_id"]],
+                fields={
+                    "news_id": {"type": "string", "required": True, "source_fields": ["news_id", "id"]},
+                    "title": {"type": "string", "required": True},
+                    "content": {"type": "string"},
+                    "source": {"type": "string"},
+                    "category": {"type": "string"},
+                    "published_at": {"type": "datetime", "source_fields": ["published_at", "publish_time"]},
+                },
+                save_mode=SaveMode.UPSERT,
+            ),
+            "stock_money_flow": TableConfig(
+                table_name="stock_money_flow",
+                primary_key=["code", "trade_date"],
+                unique_keys=[["code", "trade_date"]],
+                fields={
+                    "code": {"type": "string", "required": True},
+                    "name": {"type": "string"},
+                    "trade_date": {"type": "date", "required": True, "source_fields": ["trade_date", "date"]},
+                    "main_net_inflow": {"type": "float"},
+                    "main_net_inflow_pct": {"type": "float"},
+                    "super_large_net_inflow": {"type": "float"},
+                    "large_net_inflow": {"type": "float"},
+                    "medium_net_inflow": {"type": "float"},
+                    "small_net_inflow": {"type": "float"},
+                },
+                save_mode=SaveMode.UPSERT,
+            ),
+            "stock_financial_indicator": TableConfig(
+                table_name="stock_financial_indicator",
+                primary_key=["code", "report_date"],
+                unique_keys=[["code", "report_date"]],
+                fields={
+                    "code": {"type": "string", "required": True},
+                    "name": {"type": "string"},
+                    "report_date": {"type": "date", "required": True},
+                    "eps": {"type": "float"},
+                    "bps": {"type": "float"},
+                    "roe": {"type": "float"},
+                    "roa": {"type": "float"},
+                    "gross_margin": {"type": "float"},
+                    "net_margin": {"type": "float"},
+                    "revenue": {"type": "float"},
+                    "net_profit": {"type": "float"},
+                },
+                save_mode=SaveMode.UPSERT,
+            ),
+            "north_money": TableConfig(
+                table_name="north_money",
+                primary_key=["trade_date"],
+                unique_keys=[["trade_date"]],
+                fields={
+                    "trade_date": {"type": "date", "required": True, "source_fields": ["trade_date", "date"]},
+                    "sh_net_inflow": {"type": "float"},
+                    "sz_net_inflow": {"type": "float"},
+                    "total_net_inflow": {"type": "float", "source_fields": ["total_net_inflow", "net_inflow"]},
+                },
+                save_mode=SaveMode.UPSERT,
+            ),
+        }
+        
+        for table_name, table_config in builtin_tables.items():
+            if table_name not in self._config.tables:
+                self._config.tables[table_name] = table_config
+    
+    def register_table(self, config: TableConfig) -> None:
+        """Register a table configuration."""
+        self._config.tables[config.table_name] = config
+    
+    def get_table_config(self, table_name: str) -> TableConfig | None:
+        """Get table configuration."""
+        return self._config.tables.get(table_name)
+    
+    def _to_dict(self, obj: Any) -> dict[str, Any]:
+        """Convert object to dictionary."""
+        if hasattr(obj, 'model_dump'):
+            return obj.model_dump()
+        elif hasattr(obj, 'dict'):
+            return obj.dict()
+        elif isinstance(obj, dict):
+            return obj
+        return {}
     
     @with_retry()
-    async def save_stock_quotes(
+    async def save(
         self,
-        quotes: list[Any],
+        table_name: str,
+        data: list[Any],
+        table_config: TableConfig | None = None,
     ) -> int:
-        """Save stock daily quotes to database with batch processing."""
-        if not quotes:
+        """
+        Save data to a configured table.
+        
+        Args:
+            table_name: Name of the target table
+            data: List of data objects to save
+            table_config: Optional table configuration (uses registered config if not provided)
+        
+        Returns:
+            Number of records saved
+        """
+        if not data:
             return 0
         
-        saved = 0
-        total = len(quotes)
+        config = table_config or self._config.tables.get(table_name)
+        if not config:
+            raise ValueError(f"No configuration found for table: {table_name}")
         
-        async with self.session_maker() as session:
+        saved = 0
+        total = len(data)
+        batch_size = config.batch_size or self._config.default_batch_size
+        
+        async with self._session_maker() as session:
             try:
-                for i in range(0, total, self.batch_size):
-                    batch = quotes[i:i + self.batch_size]
-                    batch_saved = 0
-                    
-                    for quote in batch:
-                        try:
-                            data = _to_dict(quote)
-                            
-                            await session.execute(text("""
-                                INSERT INTO openfinance.stock_daily_quote 
-                                (code, name, trade_date, open, high, low, close, pre_close, 
-                                 change, change_pct, volume, amount, turnover_rate, amplitude, 
-                                 market_cap, circulating_market_cap)
-                                VALUES (:code, :name, :trade_date, :open, :high, :low, :close, :pre_close,
-                                        :change, :change_pct, :volume, :amount, :turnover_rate, :amplitude,
-                                        :market_cap, :circulating_market_cap)
-                                ON CONFLICT (code, trade_date) DO UPDATE SET
-                                    open = COALESCE(EXCLUDED.open, openfinance.stock_daily_quote.open),
-                                    high = COALESCE(EXCLUDED.high, openfinance.stock_daily_quote.high),
-                                    low = COALESCE(EXCLUDED.low, openfinance.stock_daily_quote.low),
-                                    close = COALESCE(EXCLUDED.close, openfinance.stock_daily_quote.close),
-                                    volume = COALESCE(EXCLUDED.volume, openfinance.stock_daily_quote.volume),
-                                    amount = COALESCE(EXCLUDED.amount, openfinance.stock_daily_quote.amount),
-                                    market_cap = COALESCE(EXCLUDED.market_cap, openfinance.stock_daily_quote.market_cap)
-                            """), {
-                                "code": data.get("code", ""),
-                                "name": data.get("name", ""),
-                                "trade_date": _parse_date(data.get("trade_date") or data.get("date")),
-                                "open": data.get("open"),
-                                "high": data.get("high"),
-                                "low": data.get("low"),
-                                "close": data.get("close"),
-                                "pre_close": data.get("pre_close"),
-                                "change": data.get("change"),
-                                "change_pct": data.get("change_pct") or data.get("pct_chg"),
-                                "volume": data.get("volume"),
-                                "amount": data.get("amount"),
-                                "turnover_rate": data.get("turnover_rate"),
-                                "amplitude": data.get("amplitude"),
-                                "market_cap": data.get("market_cap"),
-                                "circulating_market_cap": data.get("circulating_market_cap"),
-                            })
-                            batch_saved += 1
-                        except IntegrityError as e:
-                            logger.debug(f"Skipping duplicate quote: {e}")
-                        except Exception as e:
-                            logger.warning(f"Failed to save quote: {e}")
-                    
+                for i in range(0, total, batch_size):
+                    batch = data[i:i + batch_size]
+                    batch_saved = await self._save_batch(session, config, batch)
                     saved += batch_saved
-                    logger.info(f"Saved batch {i // self.batch_size + 1}: {batch_saved}/{len(batch)} quotes")
+                    logger.info(f"Saved batch {i // batch_size + 1}: {batch_saved}/{len(batch)} records")
                 
                 await session.commit()
-                logger.info(f"Successfully saved {saved}/{total} stock quotes to database")
+                logger.info(f"Successfully saved {saved}/{total} records to {config.get_full_table_name()}")
                 
             except Exception as e:
                 await session.rollback()
-                logger.error(f"Failed to save stock quotes, transaction rolled back: {e}")
+                logger.error(f"Failed to save data to {table_name}: {e}")
                 raise
         
         return saved
     
-    @with_retry()
-    async def save_stock_basic(
+    async def _save_batch(
         self,
-        stocks: list[Any],
+        session: AsyncSession,
+        config: TableConfig,
+        batch: list[Any],
     ) -> int:
-        """Save stock basic info to database with batch processing."""
-        if not stocks:
-            return 0
-        
+        """Save a batch of data."""
         saved = 0
-        total = len(stocks)
         
-        async with self.session_maker() as session:
+        for item in batch:
             try:
-                for i in range(0, total, self.batch_size):
-                    batch = stocks[i:i + self.batch_size]
-                    batch_saved = 0
-                    
-                    for stock in batch:
-                        try:
-                            data = _to_dict(stock)
-                            
-                            await session.execute(text("""
-                                INSERT INTO openfinance.stock_basic 
-                                (code, name, industry, market, list_date, total_shares, 
-                                 circulating_shares, market_cap, pe_ratio, pb_ratio, properties)
-                                VALUES (:code, :name, :industry, :market, :list_date, :total_shares,
-                                        :circulating_shares, :market_cap, :pe_ratio, :pb_ratio, CAST(:properties AS jsonb))
-                                ON CONFLICT (code) DO UPDATE SET
-                                    name = EXCLUDED.name,
-                                    industry = COALESCE(EXCLUDED.industry, openfinance.stock_basic.industry),
-                                    market_cap = COALESCE(EXCLUDED.market_cap, openfinance.stock_basic.market_cap),
-                                    pe_ratio = COALESCE(EXCLUDED.pe_ratio, openfinance.stock_basic.pe_ratio),
-                                    pb_ratio = COALESCE(EXCLUDED.pb_ratio, openfinance.stock_basic.pb_ratio),
-                                    updated_at = NOW()
-                            """), {
-                                "code": data.get("code", ""),
-                                "name": data.get("name", ""),
-                                "industry": data.get("industry"),
-                                "market": data.get("market"),
-                                "list_date": _parse_date(data.get("list_date")),
-                                "total_shares": data.get("total_shares"),
-                                "circulating_shares": data.get("circulating_shares"),
-                                "market_cap": data.get("market_cap"),
-                                "pe_ratio": data.get("pe_ratio"),
-                                "pb_ratio": data.get("pb_ratio"),
-                                "properties": "{}",
-                            })
-                            batch_saved += 1
-                        except IntegrityError as e:
-                            logger.debug(f"Skipping duplicate stock: {e}")
-                        except Exception as e:
-                            logger.warning(f"Failed to save stock: {e}")
-                    
-                    saved += batch_saved
+                data = self._to_dict(item)
+                processed = self._process_data(config, data)
                 
-                await session.commit()
-                logger.info(f"Successfully saved {saved}/{total} stock basic info to database")
+                if config.save_mode == SaveMode.UPSERT:
+                    await self._upsert(session, config, processed)
+                elif config.save_mode == SaveMode.INSERT:
+                    await self._insert(session, config, processed)
+                else:
+                    await self._insert(session, config, processed)
                 
+                saved += 1
+                
+            except IntegrityError as e:
+                logger.debug(f"Skipping duplicate: {e}")
             except Exception as e:
-                await session.rollback()
-                logger.error(f"Failed to save stock basic info, transaction rolled back: {e}")
-                raise
+                logger.warning(f"Failed to save item: {e}")
         
         return saved
     
-    @with_retry()
-    async def save_money_flow(
-        self,
-        flows: list[Any],
-    ) -> int:
-        """Save money flow data to database with batch processing."""
-        if not flows:
-            return 0
+    def _process_data(self, config: TableConfig, data: dict[str, Any]) -> dict[str, Any]:
+        """Process data using field configurations."""
+        processed = {}
         
-        saved = 0
-        total = len(flows)
+        for field_name, field_data in config.fields.items():
+            field_config = config.get_field_config(field_name)
+            value = field_config.get_value(data)
+            processed[field_name] = value
         
-        async with self.session_maker() as session:
-            try:
-                for i in range(0, total, self.batch_size):
-                    batch = flows[i:i + self.batch_size]
-                    batch_saved = 0
-                    
-                    for flow in batch:
-                        try:
-                            data = _to_dict(flow)
-                            
-                            await session.execute(text("""
-                                INSERT INTO openfinance.stock_money_flow 
-                                (code, name, trade_date, main_net_inflow, main_net_inflow_pct,
-                                 super_large_net_inflow, large_net_inflow, medium_net_inflow,
-                                 small_net_inflow, north_net_inflow)
-                                VALUES (:code, :name, :trade_date, :main_net_inflow, :main_net_inflow_pct,
-                                        :super_large_net_inflow, :large_net_inflow, :medium_net_inflow,
-                                        :small_net_inflow, :north_net_inflow)
-                                ON CONFLICT (code, trade_date) DO UPDATE SET
-                                    main_net_inflow = COALESCE(EXCLUDED.main_net_inflow, openfinance.stock_money_flow.main_net_inflow),
-                                    main_net_inflow_pct = COALESCE(EXCLUDED.main_net_inflow_pct, openfinance.stock_money_flow.main_net_inflow_pct)
-                            """), {
-                                "code": data.get("code", ""),
-                                "name": data.get("name", ""),
-                                "trade_date": _parse_date(data.get("trade_date") or data.get("date")),
-                                "main_net_inflow": data.get("main_net_inflow"),
-                                "main_net_inflow_pct": data.get("main_net_inflow_pct"),
-                                "super_large_net_inflow": data.get("super_large_net_inflow"),
-                                "large_net_inflow": data.get("large_net_inflow"),
-                                "medium_net_inflow": data.get("medium_net_inflow"),
-                                "small_net_inflow": data.get("small_net_inflow"),
-                                "north_net_inflow": data.get("north_net_inflow"),
-                            })
-                            batch_saved += 1
-                        except IntegrityError as e:
-                            logger.debug(f"Skipping duplicate money flow: {e}")
-                        except Exception as e:
-                            logger.warning(f"Failed to save money flow: {e}")
-                    
-                    saved += batch_saved
-                
-                await session.commit()
-                logger.info(f"Successfully saved {saved}/{total} money flow records to database")
-                
-            except Exception as e:
-                await session.rollback()
-                logger.error(f"Failed to save money flow data, transaction rolled back: {e}")
-                raise
-        
-        return saved
+        return processed
     
-    @with_retry()
-    async def save_news(
+    async def _upsert(
         self,
-        news_list: list[Any],
-    ) -> int:
-        """Save news data to database with batch processing."""
-        if not news_list:
-            return 0
+        session: AsyncSession,
+        config: TableConfig,
+        data: dict[str, Any],
+    ) -> None:
+        """Execute UPSERT (INSERT ... ON CONFLICT DO UPDATE)."""
+        columns = list(config.fields.keys())
+        placeholders = ", ".join(f":{col}" for col in columns)
+        column_list = ", ".join(columns)
         
-        saved = 0
-        total = len(news_list)
+        update_parts = []
+        for col in columns:
+            if col not in config.primary_key:
+                update_parts.append(
+                    f"{col} = COALESCE(EXCLUDED.{col}, {config.get_full_table_name()}.{col})"
+                )
+        update_clause = ", ".join(update_parts) if update_parts else ""
         
-        async with self.session_maker() as session:
-            try:
-                for i in range(0, total, self.batch_size):
-                    batch = news_list[i:i + self.batch_size]
-                    batch_saved = 0
-                    
-                    for news in batch:
-                        try:
-                            data = _to_dict(news)
-                            news_id = data.get("id") or data.get("news_id") or f"news_{hash(data.get('title', ''))}"
-                            published_at = data.get("published_at") or data.get("publish_time") or datetime.now()
-                            
-                            await session.execute(text("""
-                                INSERT INTO openfinance.news 
-                                (news_id, title, content, source, category, keywords, published_at)
-                                VALUES (:news_id, :title, :content, :source, :category, :keywords, :published_at)
-                                ON CONFLICT (news_id) DO UPDATE SET
-                                    title = EXCLUDED.title,
-                                    content = COALESCE(EXCLUDED.content, openfinance.news.content)
-                            """), {
-                                "news_id": str(news_id),
-                                "title": data.get("title", "")[:500],
-                                "content": data.get("content", ""),
-                                "source": data.get("source", "unknown"),
-                                "category": data.get("category"),
-                                "keywords": data.get("keywords", []),
-                                "published_at": published_at,
-                            })
-                            batch_saved += 1
-                        except IntegrityError as e:
-                            logger.debug(f"Skipping duplicate news: {e}")
-                        except Exception as e:
-                            logger.warning(f"Failed to save news: {e}")
-                    
-                    saved += batch_saved
-                
-                await session.commit()
-                logger.info(f"Successfully saved {saved}/{total} news records to database")
-                
-            except Exception as e:
-                await session.rollback()
-                logger.error(f"Failed to save news data, transaction rolled back: {e}")
-                raise
+        sql = f"""
+            INSERT INTO {config.get_full_table_name()} ({column_list})
+            VALUES ({placeholders})
+            {config.get_upsert_conflict_clause()}
+            {"DO UPDATE SET " + update_clause if update_clause else "DO NOTHING"}
+        """
         
-        return saved
+        await session.execute(text(sql), data)
     
-    @with_retry()
-    async def save_macro_data(
+    async def _insert(
         self,
-        macro_list: list[Any],
-    ) -> int:
-        """Save macro economic data to database with batch processing."""
-        if not macro_list:
-            return 0
+        session: AsyncSession,
+        config: TableConfig,
+        data: dict[str, Any],
+    ) -> None:
+        """Execute simple INSERT."""
+        columns = list(config.fields.keys())
+        placeholders = ", ".join(f":{col}" for col in columns)
+        column_list = ", ".join(columns)
         
-        saved = 0
-        total = len(macro_list)
+        sql = f"""
+            INSERT INTO {config.get_full_table_name()} ({column_list})
+            VALUES ({placeholders})
+        """
         
-        async with self.session_maker() as session:
-            try:
-                for i in range(0, total, self.batch_size):
-                    batch = macro_list[i:i + self.batch_size]
-                    batch_saved = 0
-                    
-                    for macro in batch:
-                        try:
-                            data = _to_dict(macro)
-                            
-                            await session.execute(text("""
-                                INSERT INTO openfinance.macro_economic 
-                                (indicator_code, indicator_name, value, unit, period, country, source)
-                                VALUES (:indicator_code, :indicator_name, :value, :unit, :period, :country, :source)
-                                ON CONFLICT (indicator_code, period) DO UPDATE SET
-                                    value = EXCLUDED.value,
-                                    indicator_name = EXCLUDED.indicator_name
-                            """), {
-                                "indicator_code": data.get("indicator_code", ""),
-                                "indicator_name": data.get("indicator_name", ""),
-                                "value": data.get("value"),
-                                "unit": data.get("unit", ""),
-                                "period": data.get("period", ""),
-                                "country": data.get("country", "CN"),
-                                "source": data.get("source", "eastmoney"),
-                            })
-                            batch_saved += 1
-                        except IntegrityError as e:
-                            logger.debug(f"Skipping duplicate macro data: {e}")
-                        except Exception as e:
-                            logger.warning(f"Failed to save macro data: {e}")
-                    
-                    saved += batch_saved
-                
-                await session.commit()
-                logger.info(f"Successfully saved {saved}/{total} macro economic records to database")
-                
-            except Exception as e:
-                await session.rollback()
-                logger.error(f"Failed to save macro data, transaction rolled back: {e}")
-                raise
-        
-        return saved
-    
-    @with_retry()
-    async def save_factor_data(
-        self,
-        factors: list[Any],
-    ) -> int:
-        """Save factor data to database with batch processing."""
-        if not factors:
-            return 0
-        
-        saved = 0
-        total = len(factors)
-        
-        async with self.session_maker() as session:
-            try:
-                for i in range(0, total, self.batch_size):
-                    batch = factors[i:i + self.batch_size]
-                    batch_saved = 0
-                    
-                    for factor in batch:
-                        try:
-                            data = _to_dict(factor)
-                            
-                            await session.execute(text("""
-                                INSERT INTO openfinance.factor_data 
-                                (factor_id, factor_name, factor_category, code, trade_date, 
-                                 factor_value, factor_rank, factor_percentile, neutralized)
-                                VALUES (:factor_id, :factor_name, :factor_category, :code, :trade_date,
-                                        :factor_value, :factor_rank, :factor_percentile, :neutralized)
-                                ON CONFLICT (factor_id, code, trade_date) DO UPDATE SET
-                                    factor_value = EXCLUDED.factor_value,
-                                    factor_rank = COALESCE(EXCLUDED.factor_rank, openfinance.factor_data.factor_rank)
-                            """), {
-                                "factor_id": data.get("factor_id", ""),
-                                "factor_name": data.get("factor_name", ""),
-                                "factor_category": data.get("factor_category", ""),
-                                "code": data.get("code", ""),
-                                "trade_date": _parse_date(data.get("trade_date")),
-                                "factor_value": data.get("factor_value"),
-                                "factor_rank": data.get("factor_rank"),
-                                "factor_percentile": data.get("factor_percentile"),
-                                "neutralized": data.get("neutralized", False),
-                            })
-                            batch_saved += 1
-                        except IntegrityError as e:
-                            logger.debug(f"Skipping duplicate factor data: {e}")
-                        except Exception as e:
-                            logger.warning(f"Failed to save factor data: {e}")
-                    
-                    saved += batch_saved
-                
-                await session.commit()
-                logger.info(f"Successfully saved {saved}/{total} factor records to database")
-                
-            except Exception as e:
-                await session.rollback()
-                logger.error(f"Failed to save factor data, transaction rolled back: {e}")
-                raise
-        
-        return saved
-    
-    @with_retry()
-    async def save_financial_indicator(
-        self,
-        indicators: list[Any],
-    ) -> int:
-        """Save financial indicators to database with batch processing."""
-        if not indicators:
-            return 0
-        
-        saved = 0
-        total = len(indicators)
-        
-        async with self.session_maker() as session:
-            try:
-                for i in range(0, total, self.batch_size):
-                    batch = indicators[i:i + self.batch_size]
-                    batch_saved = 0
-                    
-                    for ind in batch:
-                        try:
-                            data = _to_dict(ind)
-                            
-                            await session.execute(text("""
-                                INSERT INTO openfinance.stock_financial_indicator 
-                                (code, name, report_date, eps, bps, roe, roa, gross_margin, net_margin,
-                                 debt_ratio, current_ratio, quick_ratio, revenue, net_profit,
-                                 revenue_yoy, net_profit_yoy)
-                                VALUES (:code, :name, :report_date, :eps, :bps, :roe, :roa, :gross_margin, :net_margin,
-                                        :debt_ratio, :current_ratio, :quick_ratio, :revenue, :net_profit,
-                                        :revenue_yoy, :net_profit_yoy)
-                                ON CONFLICT (code, report_date) DO UPDATE SET
-                                    eps = COALESCE(EXCLUDED.eps, openfinance.stock_financial_indicator.eps),
-                                    roe = COALESCE(EXCLUDED.roe, openfinance.stock_financial_indicator.roe),
-                                    revenue = COALESCE(EXCLUDED.revenue, openfinance.stock_financial_indicator.revenue),
-                                    net_profit = COALESCE(EXCLUDED.net_profit, openfinance.stock_financial_indicator.net_profit)
-                            """), {
-                                "code": data.get("code", ""),
-                                "name": data.get("name", ""),
-                                "report_date": _parse_date(data.get("report_date")),
-                                "eps": data.get("eps"),
-                                "bps": data.get("bps"),
-                                "roe": data.get("roe"),
-                                "roa": data.get("roa"),
-                                "gross_margin": data.get("gross_margin"),
-                                "net_margin": data.get("net_margin"),
-                                "debt_ratio": data.get("debt_ratio"),
-                                "current_ratio": data.get("current_ratio"),
-                                "quick_ratio": data.get("quick_ratio"),
-                                "revenue": data.get("revenue"),
-                                "net_profit": data.get("net_profit"),
-                                "revenue_yoy": data.get("revenue_yoy"),
-                                "net_profit_yoy": data.get("net_profit_yoy"),
-                            })
-                            batch_saved += 1
-                        except IntegrityError as e:
-                            logger.debug(f"Skipping duplicate financial indicator: {e}")
-                        except Exception as e:
-                            logger.warning(f"Failed to save financial indicator: {e}")
-                    
-                    saved += batch_saved
-                
-                await session.commit()
-                logger.info(f"Successfully saved {saved}/{total} financial indicator records to database")
-                
-            except Exception as e:
-                await session.rollback()
-                logger.error(f"Failed to save financial indicators, transaction rolled back: {e}")
-                raise
-        
-        return saved
+        await session.execute(text(sql), data)
     
     async def get_stats(self) -> dict[str, int]:
         """Get database statistics."""
         stats = {}
-        async with self.session_maker() as session:
-            tables = [
-                "stock_daily_quote",
-                "stock_basic",
-                "stock_financial_indicator",
-                "stock_money_flow",
-                "macro_economic",
-                "news",
-                "factor_data",
-                "entities",
-                "relations",
-            ]
-            
-            for table in tables:
+        async with self._session_maker() as session:
+            for table_name, config in self._config.tables.items():
                 try:
-                    result = await session.execute(text(f"SELECT COUNT(*) FROM openfinance.{table}"))
-                    stats[table] = result.scalar() or 0
+                    result = await session.execute(
+                        text(f"SELECT COUNT(*) FROM {config.get_full_table_name()}")
+                    )
+                    stats[table_name] = result.scalar() or 0
                 except Exception:
-                    stats[table] = 0
-        
+                    stats[table_name] = 0
         return stats
-    
-    async def get_latest_trade_date(self, code: str | None = None) -> date | None:
-        """Get the latest trade date from stock_daily_quote table."""
-        async with self.session_maker() as session:
-            if code:
-                result = await session.execute(text("""
-                    SELECT MAX(trade_date) FROM openfinance.stock_daily_quote 
-                    WHERE code = :code
-                """), {"code": code})
-            else:
-                result = await session.execute(text("""
-                    SELECT MAX(trade_date) FROM openfinance.stock_daily_quote
-                """))
-            
-            max_date = result.scalar()
-            return max_date if max_date else None
-    
-    async def check_data_freshness(self, table: str, max_age_hours: int = 24) -> bool:
-        """Check if data in a table is fresh (updated within specified hours)."""
-        async with self.session_maker() as session:
-            try:
-                if table == "stock_daily_quote":
-                    result = await session.execute(text("""
-                        SELECT MAX(collected_at) FROM openfinance.stock_daily_quote
-                    """))
-                elif table == "stock_basic":
-                    result = await session.execute(text("""
-                        SELECT MAX(updated_at) FROM openfinance.stock_basic
-                    """))
-                else:
-                    return False
-                
-                last_update = result.scalar()
-                if not last_update:
-                    return False
-                
-                age = datetime.now(last_update.tzinfo) - last_update
-                return age.total_seconds() < max_age_hours * 3600
-                
-            except Exception as e:
-                logger.warning(f"Failed to check data freshness for {table}: {e}")
-                return False
 
 
-persistence = DataPersistence()
+persistence = ConfigurablePersistence()
+
+
+class DataPersistence(ConfigurablePersistence):
+    """
+    Legacy DataPersistence class for backward compatibility.
+    
+    Provides the same interface as the original DataPersistence class.
+    """
+    
+    def __init__(self, batch_size: int = 500) -> None:
+        super().__init__()
+        self.batch_size = batch_size
+    
+    async def save_stock_quotes(self, quotes: list[Any]) -> int:
+        """Save stock daily quotes."""
+        return await self.save("stock_daily_quote", quotes)
+    
+    async def save_stock_basic(self, stocks: list[Any]) -> int:
+        """Save stock basic info."""
+        return await self.save("stock_basic", stocks)
+    
+    async def save_money_flow(self, flows: list[Any]) -> int:
+        """Save money flow data."""
+        return await self.save("stock_money_flow", flows)
+    
+    async def save_news(self, news_list: list[Any]) -> int:
+        """Save news data."""
+        return await self.save("news", news_list)
+    
+    async def save_macro_data(self, macro_list: list[Any]) -> int:
+        """Save macro economic data."""
+        return await self.save("macro_economic", macro_list)
+    
+    async def save_factor_data(self, factors: list[Any]) -> int:
+        """Save factor data."""
+        return await self.save("factor_data", factors)
+    
+    async def save_financial_indicator(self, indicators: list[Any]) -> int:
+        """Save financial indicators."""
+        return await self.save("stock_financial_indicator", indicators)
+    
+    async def save_north_money(self, data_list: list[Any]) -> int:
+        """Save north money data."""
+        return await self.save("north_money", data_list)
+    
+    async def save_industry_quotes(self, quotes: list[Any]) -> int:
+        """Save industry quotes."""
+        return await self.save("industry_quote", quotes)
+    
+    async def save_concept_quotes(self, quotes: list[Any]) -> int:
+        """Save concept quotes."""
+        return await self.save("concept_quote", quotes)
+    
+    async def save_company_profiles(self, profiles: list[Any]) -> int:
+        """Save company profiles."""
+        return await self.save("company_profile", profiles)

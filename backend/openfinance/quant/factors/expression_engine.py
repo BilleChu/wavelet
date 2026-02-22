@@ -19,7 +19,7 @@ from typing import Any, Callable, Protocol
 import numpy as np
 import pandas as pd
 
-from openfinance.datacenter.ads import ADSKLineModel
+from openfinance.datacenter.models.analytical import ADSKLineModel
 
 logger = logging.getLogger(__name__)
 

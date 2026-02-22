@@ -9,7 +9,7 @@ from typing import Any, Optional
 
 import pandas as pd
 
-from openfinance.datacenter.ads import ADSKLineModel
+from openfinance.datacenter.models.analytical import ADSKLineModel
 from openfinance.quant.factors.indicators.rsi import RSIFactor
 from openfinance.quant.factors.indicators.kdj import KDJFactor
 from openfinance.quant.factors import FactorConfig

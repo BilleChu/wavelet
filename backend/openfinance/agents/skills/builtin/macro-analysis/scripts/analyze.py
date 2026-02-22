@@ -16,7 +16,7 @@ import sys
 import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))))
 
-from openfinance.datacenter.ads.service import get_ads_service, MacroIndicator
+from openfinance.datacenter.models.analytical.service import get_ads_service, MacroIndicator
 
 logger = logging.getLogger(__name__)
 

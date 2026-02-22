@@ -25,6 +25,7 @@ from openfinance.api.routes.health import router as health_router
 from openfinance.api.routes.intent import router as intent_router
 from openfinance.api.routes.skills import router as skills_router
 from openfinance.api.routes.metadata import router as metadata_router
+from openfinance.api.routes.pipeline import router as pipeline_router
 from openfinance.api.websocket import router as websocket_router
 from openfinance.quant.api import router as quant_router
 from openfinance.infrastructure.logging.logging_config import get_logger, setup_logging
@@ -91,6 +92,7 @@ def create_app(
     app.include_router(datacenter_extended_router, prefix="/api", tags=["DataCenter Extended"])
     app.include_router(dataservice_router, prefix="/api", tags=["DataService"])
     app.include_router(metadata_router, prefix="/api", tags=["Metadata"])
+    app.include_router(pipeline_router, prefix="/api", tags=["Pipeline"])
     app.include_router(websocket_router, prefix="/ws", tags=["WebSocket"])
 
     @app.exception_handler(Exception)

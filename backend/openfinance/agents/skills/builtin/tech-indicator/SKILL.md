@@ -14,8 +14,8 @@ Expert analysis of technical indicators, chart patterns, and trading signals.
 ### 获取技术信号数据
 
 ```bash
-curl -X GET "http://localhost:19100/api/dataservice/v1/analysis/tech/600000" \
-  -H "X-API-Key: your_api_key" \
+curl -X GET "http://localhost:8000/api/analysis/tech/600000" \
+  -H "X-API-Key: $DATASERVICE_API_KEY" \
   -H "Content-Type: application/json"
 ```
 
@@ -70,10 +70,12 @@ curl -X GET "http://localhost:19100/api/dataservice/v1/analysis/tech/600000" \
 
 ## 脚本调用方式
 
+**注意**: 脚本需要从 backend 目录运行，使用完整相对路径。
+
 ### 完整分析
 
 ```bash
-python scripts/analyze.py --code 600519.SH --days 120
+python openfinance/agents/skills/builtin/tech-indicator/scripts/analyze.py --code 600519.SH --days 120
 ```
 
 ## 多轮交互机制
@@ -163,5 +165,5 @@ python scripts/analyze.py --code 600519.SH --days 120
 
 ## 相关文档
 
-- [数据服务接口文档](/datacenter/docs)
-- [智能分析服务](/api/dataservice/v1/services/analysis-service)
+- [数据服务接口文档](/api/datacenter)
+- [智能分析服务](/api/analysis-service)

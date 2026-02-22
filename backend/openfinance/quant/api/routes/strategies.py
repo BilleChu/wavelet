@@ -413,7 +413,7 @@ async def _get_stock_data(code: str, lookback_days: int = 60) -> list:
     import asyncpg
     import os
     from datetime import date, timedelta
-    from openfinance.datacenter.ads import ADSKLineModel
+    from openfinance.datacenter.models.analytical import ADSKLineModel
     
     db_url = os.getenv(
         "DATABASE_URL",
@@ -462,7 +462,7 @@ async def _get_stock_data(code: str, lookback_days: int = 60) -> list:
 def _generate_mock_klines(days: int, code: str) -> list:
     """Generate mock K-Line data for testing."""
     from datetime import date, timedelta
-    from openfinance.datacenter.ads import ADSKLineModel
+    from openfinance.datacenter.models.analytical import ADSKLineModel
     import random
     
     klines = []

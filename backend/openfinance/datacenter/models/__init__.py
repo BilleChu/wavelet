@@ -2,13 +2,13 @@
 Data Models Module for Data Center.
 
 This module provides:
-- ADS: Analytical Data Store models (unified business layer)
+- Analytical: Analytical Data Store models (unified business layer)
 - Framework: Generic model management infrastructure
 - ORM: SQLAlchemy database models
 
 Architecture:
 ┌─────────────────────────────────────────────────────────────┐
-│                    ADS Models (Business Layer)               │
+│                    Analytical Models (Business Layer)        │
 │         Unified data models for all business logic          │
 ├─────────────────────────────────────────────────────────────┤
 │                    Model Framework                           │
@@ -62,6 +62,42 @@ from .orm import (
     RELATION_TYPE_LABELS,
 )
 
+from openfinance.datacenter.models.analytical import (
+    ADSModel,
+    ADSModelWithCode,
+    ADSModelWithDate,
+    ADSModelWithReportDate,
+    ADSDataBatch,
+    DataCategory,
+    DataQuality,
+    MarketType,
+    ReportPeriod,
+    ADSKLineModel,
+    ADSMoneyFlowModel,
+    ADSOptionQuoteModel,
+    ADSFutureQuoteModel,
+    ADSStockBasicModel,
+    ADSFinancialIndicatorModel,
+    ADSBalanceSheetModel,
+    ADSIncomeStatementModel,
+    ADSCashFlowModel,
+    ADSShareholderModel,
+    ADSShareholderChangeModel,
+    ADSInsiderTradingModel,
+    ADSMarketSentimentModel,
+    ADSNewsModel,
+    ADSStockSentimentModel,
+    ADSMacroEconomicModel,
+    ADSInterestRateModel,
+    ADSExchangeRateModel,
+    ADSFactorModel,
+    ADSSignalModel,
+    ADSBacktestResultModel,
+    ADSMetaModel,
+    ADSFieldMetaModel,
+    get_model as get_ads_model,
+)
+
 __all__ = [
     "ModelRegistry",
     "ModelMetadata",
@@ -97,4 +133,37 @@ __all__ = [
     "VALID_RELATION_TYPES",
     "ENTITY_TYPE_LABELS",
     "RELATION_TYPE_LABELS",
+    "ADSModel",
+    "ADSModelWithCode",
+    "ADSModelWithDate",
+    "ADSModelWithReportDate",
+    "ADSDataBatch",
+    "DataCategory",
+    "DataQuality",
+    "MarketType",
+    "ReportPeriod",
+    "ADSKLineModel",
+    "ADSMoneyFlowModel",
+    "ADSOptionQuoteModel",
+    "ADSFutureQuoteModel",
+    "ADSStockBasicModel",
+    "ADSFinancialIndicatorModel",
+    "ADSBalanceSheetModel",
+    "ADSIncomeStatementModel",
+    "ADSCashFlowModel",
+    "ADSShareholderModel",
+    "ADSShareholderChangeModel",
+    "ADSInsiderTradingModel",
+    "ADSMarketSentimentModel",
+    "ADSNewsModel",
+    "ADSStockSentimentModel",
+    "ADSMacroEconomicModel",
+    "ADSInterestRateModel",
+    "ADSExchangeRateModel",
+    "ADSFactorModel",
+    "ADSSignalModel",
+    "ADSBacktestResultModel",
+    "ADSMetaModel",
+    "ADSFieldMetaModel",
+    "get_ads_model",
 ]

@@ -21,7 +21,7 @@ import numpy as np
 import pandas as pd
 from pydantic import BaseModel, Field, field_validator
 
-from openfinance.datacenter.ads import ADSKLineModel
+from openfinance.datacenter.models.analytical import ADSKLineModel
 from openfinance.domain.models.quant import (
     FactorType,
     FactorCategory,

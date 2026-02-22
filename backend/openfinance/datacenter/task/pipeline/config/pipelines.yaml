@@ -1,0 +1,183 @@
+# Pipeline Configuration
+# Defines data collection pipelines with tasks and dependencies
+
+pipelines:
+  daily_basic_sync:
+    name: "Daily Basic Data Sync"
+    description: "Sync daily basic data including stock info, industry, concept"
+    enabled: true
+    schedule:
+      type: cron
+      expression: "0 9 * * *"
+      timezone: "Asia/Shanghai"
+    max_concurrent_tasks: 5
+    timeout_seconds: 3600
+    tasks:
+      - task_id: sync_stock_basic
+        name: "Sync Stock Basic Info"
+        task_type: stock_basic_info
+        priority: high
+        timeout_seconds: 300
+        max_retries: 3
+        params: {}
+        dependencies: []
+
+      - task_id: sync_industry
+        name: "Sync Industry Data"
+        task_type: industry_classify
+        priority: normal
+        timeout_seconds: 300
+        max_retries: 3
+        params: {}
+        dependencies:
+          - sync_stock_basic
+
+      - task_id: sync_concept
+        name: "Sync Concept Data"
+        task_type: concept_classify
+        priority: normal
+        timeout_seconds: 300
+        max_retries: 3
+        params: {}
+        dependencies:
+          - sync_stock_basic
+
+      - task_id: sync_daily_basic
+        name: "Sync Daily Basic"
+        task_type: daily_basic
+        priority: normal
+        timeout_seconds: 300
+        max_retries: 3
+        params: {}
+        dependencies:
+          - sync_stock_basic
+
+  intraday_collection:
+    name: "Intraday Data Collection"
+    description: "Collect real-time market data during trading hours"
+    enabled: true
+    schedule:
+      type: interval
+      expression: "300"
+    max_concurrent_tasks: 5
+    timeout_seconds: 600
+    tasks:
+      - task_id: collect_realtime
+        name: "Collect Realtime Quotes"
+        task_type: market_realtime
+        priority: high
+        timeout_seconds: 120
+        max_retries: 2
+        params: {}
+        dependencies: []
+
+      - task_id: collect_tick
+        name: "Collect Tick Data"
+        task_type: tick_data
+        priority: normal
+        timeout_seconds: 180
+        max_retries: 2
+        params: {}
+        dependencies:
+          - collect_realtime
+
+  daily_post_market:
+    name: "Daily Post-Market Collection"
+    description: "Collect daily data after market close"
+    enabled: true
+    schedule:
+      type: cron
+      expression: "0 16 * * *"
+      timezone: "Asia/Shanghai"
+    max_concurrent_tasks: 5
+    timeout_seconds: 3600
+    tasks:
+      - task_id: collect_daily_quotes
+        name: "Collect Daily Quotes"
+        task_type: daily_quotes
+        priority: high
+        timeout_seconds: 300
+        max_retries: 3
+        params: {}
+        dependencies: []
+
+      - task_id: collect_financial_indicator
+        name: "Collect Financial Indicators"
+        task_type: financial_indicator
+        priority: normal
+        timeout_seconds: 300
+        max_retries: 3
+        params: {}
+        dependencies:
+          - collect_daily_quotes
+
+      - task_id: collect_income
+        name: "Collect Income Statement"
+        task_type: income_statement
+        priority: normal
+        timeout_seconds: 300
+        max_retries: 3
+        params: {}
+        dependencies:
+          - collect_daily_quotes
+
+      - task_id: collect_balance
+        name: "Collect Balance Sheet"
+        task_type: balance_sheet
+        priority: normal
+        timeout_seconds: 300
+        max_retries: 3
+        params: {}
+        dependencies:
+          - collect_daily_quotes
+
+  knowledge_graph_sync:
+    name: "Knowledge Graph Sync"
+    description: "Sync entities to knowledge graph"
+    enabled: true
+    schedule:
+      type: cron
+      expression: "0 10 * * *"
+      timezone: "Asia/Shanghai"
+    max_concurrent_tasks: 5
+    timeout_seconds: 3600
+    tasks:
+      - task_id: sync_company_entities
+        name: "Sync Company Entities"
+        task_type: sync_company_entities
+        priority: high
+        timeout_seconds: 300
+        max_retries: 3
+        params: {}
+        dependencies: []
+
+      - task_id: sync_stock_entities
+        name: "Sync Stock Entities"
+        task_type: sync_stock_entities
+        priority: high
+        timeout_seconds: 600
+        max_retries: 3
+        params:
+          batch_size: 1000
+        dependencies:
+          - sync_company_entities
+
+      - task_id: sync_industry_entities
+        name: "Sync Industry Entities"
+        task_type: sync_industry_entities
+        priority: normal
+        timeout_seconds: 300
+        max_retries: 3
+        params: {}
+        dependencies:
+          - sync_company_entities
+
+      - task_id: sync_concept_entities
+        name: "Sync Concept Entities"
+        task_type: sync_concept_entities
+        priority: normal
+        timeout_seconds: 300
+        max_retries: 3
+        params: {}
+        dependencies:
+          - sync_company_entities

@@ -25,8 +25,19 @@ from openfinance.datacenter.task import (
     TaskPriority,
     TriggerManager,
     TriggerType,
+    get_handler,
+    TaskRegistry,
 )
-from openfinance.datacenter.task.handlers import HANDLERS, get_handler
+from openfinance.datacenter.task.executors import register_all_executors
+from openfinance.datacenter.task.additional_executors import register_additional_executors
+from openfinance.datacenter.collector.source import (
+    SourceRegistry,
+    SourceConfig,
+    SourceType,
+    SourceStatus,
+    get_source_registry,
+)
+
 
 logger = get_logger(__name__)
 
@@ -37,10 +48,13 @@ _task_manager: TaskManager | None = None
 
 async def execute_collection_task(task: TaskDefinition, params: dict[str, Any]) -> dict[str, Any]:
     """Execute a data collection task."""
-    handler = get_handler(task.task_type)
-    if not handler:
-        raise ValueError(f"No handler for task type: {task.task_type}")
-    return await handler.execute(task, params)
+    executor = get_handler(task.task_type)
+    if not executor:
+        raise ValueError(f"No executor for task type: {task.task_type}")
+    
+    from openfinance.datacenter.task.registry import TaskProgress
+    progress = TaskProgress(task_id=task.task_id)
+    return await executor.execute(params, progress)
 
 
 def get_task_manager() -> TaskManager:
@@ -49,12 +63,16 @@ def get_task_manager() -> TaskManager:
     if _task_manager is None:
         _task_manager = TaskManager(max_concurrent=5)
         
-        for task_type in HANDLERS:
+        register_all_executors()
+        register_additional_executors()
+        
+        task_types = list(TaskRegistry._executors.keys())
+        for task_type in task_types:
             _task_manager.register_task_handler(task_type, execute_collection_task)
         
         logger.info_with_context(
             "TaskManager initialized with handlers",
-            context={"handlers": list(HANDLERS.keys())}
+            context={"handlers": task_types}
         )
     return _task_manager
 
@@ -125,27 +143,35 @@ async def get_overview() -> dict[str, Any]:
 
 @router.get("/sources")
 async def list_data_sources() -> dict[str, Any]:
-    """List all available data sources."""
-    sources = []
+    """List all available data sources from configuration."""
+    registry = get_source_registry()
     
-    for source in DataSource:
-        category = "market"
-        if source.value in ["TUSHARE", "AKSHARE", "WIND"]:
-            category = "api"
-        elif source.value in ["EASTMONEY", "JINSHI", "CLS", "SINA", "XUEQIU"]:
-            category = "web"
-        elif source.value in ["SHFE", "DCE", "CZCE", "CFFEX"]:
-            category = "exchange"
-        
-        sources.append(DataSourceInfo(
-            source_id=source.value,
-            name=source.value.replace("_", " ").title(),
-            category=category,
-            is_available=True,
-        ))
+    config_path = Path(__file__).parent.parent.parent / "datacenter" / "collector" / "config" / "sources.yaml"
+    if config_path.exists():
+        registry.load_from_file(config_path)
+    
+    sources = registry.get_sources()
     
     return {
-        "sources": [s.model_dump() for s in sources],
+        "success": True,
+        "sources": [
+            {
+                "source_id": s.source_id,
+                "source_name": s.name,
+                "source_type": s.source_type.value if hasattr(s.source_type, 'value') else str(s.source_type),
+                "api_url": s.connection.base_url if s.connection else None,
+                "enabled": s.enabled,
+                "status": s.status.value if hasattr(s.status, 'value') else str(s.status),
+                "rate_limit": s.rate_limit.requests_per_minute if s.rate_limit else None,
+                "timeout_seconds": s.connection.timeout if s.connection else 30.0,
+                "retry_count": s.retry.max_retries if s.retry else 3,
+                "tags": s.tags or [],
+                "description": s.metadata.get("description", "") if s.metadata else "",
+                "created_at": datetime.now().isoformat(),
+                "updated_at": datetime.now().isoformat(),
+            }
+            for s in sources
+        ],
         "total": len(sources),
     }
 
@@ -915,6 +941,95 @@ async def get_knowledge_graph_stats() -> dict[str, Any]:
                 logger.warning(f"Failed to read graph file {file}: {e}")
     
     return stats
+
+
+@router.get("/usage/stats")
+async def get_usage_stats() -> dict[str, Any]:
+    """Get data usage statistics from database."""
+    try:
+        from sqlalchemy import select, func
+        from openfinance.datacenter.models.orm import (
+            StockBasicModel, 
+            StockDailyQuoteModel,
+            TaskExecutionModel,
+        )
+        from openfinance.infrastructure.database.database import async_session_maker
+        
+        async with async_session_maker() as session:
+            total_stocks = await session.scalar(select(func.count()).select_from(StockBasicModel))
+            total_quotes = await session.scalar(select(func.count()).select_from(StockDailyQuoteModel))
+            total_executions = await session.scalar(select(func.count()).select_from(TaskExecutionModel))
+            
+            return {
+                "total_requests": total_executions or 0,
+                "total_records": (total_stocks or 0) + (total_quotes or 0),
+                "total_stocks": total_stocks or 0,
+                "total_quotes": total_quotes or 0,
+                "by_source": {},
+                "by_type": {
+                    "stocks": total_stocks or 0,
+                    "quotes": total_quotes or 0,
+                },
+                "daily_usage": [],
+            }
+    except Exception as e:
+        logger.warning(f"Database not available: {e}")
+        return {
+            "total_requests": 0,
+            "total_records": 0,
+            "total_stocks": 0,
+            "total_quotes": 0,
+            "by_source": {},
+            "by_type": {},
+            "daily_usage": [],
+        }
+
+
+@router.get("/usage/records")
+async def get_usage_records(
+    limit: int = 50,
+    offset: int = 0,
+    source: str | None = None,
+) -> dict[str, Any]:
+    """Get data usage records from database."""
+    try:
+        from sqlalchemy import select
+        from openfinance.datacenter.models.orm import TaskExecutionModel
+        from openfinance.infrastructure.database.database import async_session_maker
+        
+        async with async_session_maker() as session:
+            query = select(TaskExecutionModel).order_by(TaskExecutionModel.started_at.desc()).limit(limit).offset(offset)
+            result = await session.execute(query)
+            executions = result.scalars().all()
+            
+            return {
+                "records": [
+                    {
+                        "execution_id": exec.execution_id,
+                        "task_id": exec.task_id,
+                        "task_type": exec.task_type,
+                        "status": exec.status,
+                        "started_at": exec.started_at.isoformat() if exec.started_at else None,
+                        "completed_at": exec.completed_at.isoformat() if exec.completed_at else None,
+                        "duration_ms": exec.duration_ms,
+                        "records_processed": exec.records_processed,
+                        "records_failed": exec.records_failed,
+                        "error": exec.error,
+                    }
+                    for exec in executions
+                ],
+                "total": len(executions),
+                "limit": limit,
+                "offset": offset,
+            }
+    except Exception as e:
+        logger.warning(f"Database not available: {e}")
+        return {
+            "records": [],
+            "total": 0,
+            "limit": limit,
+            "offset": offset,
+        }
 
 
 DATA_DIR = Path(__file__).parent.parent.parent.parent / "data"

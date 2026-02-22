@@ -2,11 +2,9 @@
 Data Center System for OpenFinance.
 
 This module provides comprehensive data management including:
-- ADS: Analytical Data Store - unified data models
 - Collector: Multi-source data acquisition and cleaning
 - Models: ORM models, framework, and mappings
-- Provider: Data source abstraction and MCP framework
-- Quality: Data quality checking and validation
+- Observability: Quality checking, monitoring, lineage
 - Marketplace: Data service marketplace
 - Task: Task scheduling and execution
 - Core: Core utilities (config, conversion, HTTP client)
@@ -16,17 +14,20 @@ Architecture:
 │                    Marketplace Layer                         │
 │         (Data Service Marketplace, Gateway)                 │
 ├─────────────────────────────────────────────────────────────┤
-│                    Provider Layer                            │
-│         (Data Sources, MCP Framework)                       │
+│                    Task Layer                                │
+│         (DAG Engine, Scheduler, Executors)                  │
 ├─────────────────────────────────────────────────────────────┤
-│                    ADS Layer                                 │
-│         (Unified Data Models)                               │
+│                    Observability Layer                       │
+│         (Quality, Monitoring, Lineage)                      │
 ├─────────────────────────────────────────────────────────────┤
 │                    Models Layer                              │
-│         (ORM, Framework, Mappings)                          │
+│         (Analytical, ORM, Framework, Mappings)              │
+├─────────────────────────────────────────────────────────────┤
+│                    Collector Layer                           │
+│         (Source, Core, Implementations)                     │
 ├─────────────────────────────────────────────────────────────┤
 │                    Core Layer                                │
-│         (Config, Utils, Quality, Task, Collector)           │
+│         (Config, Utils, HTTP Client)                        │
 └─────────────────────────────────────────────────────────────┘
 """
 
@@ -43,15 +44,11 @@ from openfinance.datacenter.collector import (
     MarketDataCollector,
     MarketRealtimeCollector,
     KLineCollector,
-)
-
-from openfinance.datacenter.provider import (
-    MCPService,
-    MCPServerConfig,
-    ServiceRegistry,
-    BaseDataProvider,
-    DataProviderError,
-    create_data_provider,
+    SourceRegistry,
+    SourceConfig,
+    SourceType,
+    SourceStatus,
+    get_source_registry,
 )
 
 from openfinance.datacenter.core import (
@@ -62,13 +59,10 @@ from openfinance.datacenter.core import (
     normalize_code,
     HttpClient,
     FieldMappingRegistry,
-    SourceRegistry,
     DatacenterConfig,
-    ConfigDrivenCollector,
-    CollectorConfig,
 )
 
-from openfinance.datacenter.quality import (
+from openfinance.datacenter.observability import (
     DataQualityChecker,
     QualityDimension,
     QualityReport,
@@ -76,15 +70,12 @@ from openfinance.datacenter.quality import (
     DataValidator,
     ValidationRule,
     ValidationResult,
-    DataLineage,
-    LineageTracker,
-)
-
-from openfinance.datacenter.monitoring import (
-    MetricsCollector,
-    AlertManager,
-    AlertRule,
+    UnifiedMonitor,
+    Alert,
     AlertSeverity,
+    AlertRule,
+    MetricsCollector,
+    get_unified_monitor,
 )
 
 from openfinance.datacenter.marketplace import (
@@ -93,7 +84,7 @@ from openfinance.datacenter.marketplace import (
     ServiceMonitor,
 )
 
-from openfinance.datacenter.ads import (
+from openfinance.datacenter.models.analytical import (
     ADSModel,
     ADSKLineModel,
     ADSFactorModel,
@@ -121,6 +112,21 @@ from openfinance.datacenter.models import (
     RelationModel,
 )
 
+from openfinance.datacenter.task import (
+    TaskManager,
+    TaskDefinition,
+    TaskStatus,
+    TaskPriority,
+    TriggerManager,
+    TriggerType,
+    get_handler,
+    TaskRegistry,
+    DataLineage,
+    LineageTracker,
+    LineageNode,
+    LineageEdge,
+)
+
 __all__ = [
     "BaseCollector",
     "CollectionConfig",
@@ -134,12 +140,11 @@ __all__ = [
     "MarketDataCollector",
     "MarketRealtimeCollector",
     "KLineCollector",
-    "MCPService",
-    "MCPServerConfig",
-    "ServiceRegistry",
-    "BaseDataProvider",
-    "DataProviderError",
-    "create_data_provider",
+    "SourceRegistry",
+    "SourceConfig",
+    "SourceType",
+    "SourceStatus",
+    "get_source_registry",
     "safe_float",
     "safe_int",
     "safe_str",
@@ -147,10 +152,7 @@ __all__ = [
     "normalize_code",
     "HttpClient",
     "FieldMappingRegistry",
-    "SourceRegistry",
     "DatacenterConfig",
-    "ConfigDrivenCollector",
-    "CollectorConfig",
     "DataQualityChecker",
     "QualityDimension",
     "QualityReport",
@@ -160,10 +162,12 @@ __all__ = [
     "ValidationResult",
     "DataLineage",
     "LineageTracker",
-    "MetricsCollector",
-    "AlertManager",
-    "AlertRule",
+    "UnifiedMonitor",
+    "Alert",
     "AlertSeverity",
+    "AlertRule",
+    "MetricsCollector",
+    "get_unified_monitor",
     "DataGateway",
     "DataServiceRegistry",
     "ServiceMonitor",
@@ -189,4 +193,16 @@ __all__ = [
     "Base",
     "EntityModel",
     "RelationModel",
+    "TaskManager",
+    "TaskDefinition",
+    "TaskStatus",
+    "TaskPriority",
+    "TriggerManager",
+    "TriggerType",
+    "get_handler",
+    "TaskRegistry",
+    "DataLineage",
+    "LineageTracker",
+    "LineageNode",
+    "LineageEdge",
 ]

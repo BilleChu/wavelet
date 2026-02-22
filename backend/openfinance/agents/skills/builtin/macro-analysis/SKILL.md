@@ -1,6 +1,22 @@
 ---
 name: macro-analysis
-description: Analyze global macroeconomic data and trends. Invoke when user asks about GDP, CPI, PMI, M2, interest rates, economic indicators, or macroeconomic trends and forecasts.
+description: Analyze global macroeconomic data and trends. MUST invoke this skill when user asks about GDP, CPI, PMI, M2, interest rates, economic indicators, macroeconomic trends, economic situation, economic outlook, inflation, monetary policy, fiscal policy, or any questions about the economy (中国/美国/全球经济, 经济形势, 经济状况, 宏观经济). Use read_file tool to load this skill first.
+triggers:
+  - 宏观
+  - 经济形势
+  - 经济状况
+  - GDP
+  - CPI
+  - PMI
+  - M2
+  - 通胀
+  - 货币政策
+  - 财政政策
+  - 经济情况
+  - 经济怎么样
+  - macro
+  - economy
+  - economic
 ---
 
 # Macroeconomic Analysis
@@ -14,8 +30,8 @@ Expert analysis of global macroeconomic data, trends, and investment implication
 ### 获取宏观经济指标
 
 ```bash
-curl -X GET "http://localhost:19100/api/dataservice/v1/analysis/macro" \
-  -H "X-API-Key: your_api_key" \
+curl -X GET "http://localhost:8000/api/analysis/macro" \
+  -H "X-API-Key: $DATASERVICE_API_KEY" \
   -H "Content-Type: application/json"
 ```
 
@@ -52,8 +68,8 @@ curl -X GET "http://localhost:19100/api/dataservice/v1/analysis/macro" \
 ### 获取政策分析数据
 
 ```bash
-curl -X GET "http://localhost:19100/api/dataservice/v1/analysis/policy?limit=10" \
-  -H "X-API-Key: your_api_key"
+curl -X GET "http://localhost:8000/api/analysis/policy?limit=10" \
+  -H "X-API-Key: $DATASERVICE_API_KEY"
 ```
 
 **响应字段说明：**
@@ -80,28 +96,30 @@ curl -X GET "http://localhost:19100/api/dataservice/v1/analysis/policy?limit=10"
 
 ## 脚本调用方式
 
+**注意**: 脚本需要从 backend 目录运行，使用完整相对路径。
+
 ### 完整分析
 
 ```bash
-python scripts/analyze.py --country CN --analysis full
+python openfinance/agents/skills/builtin/macro-analysis/scripts/analyze.py --country CN --analysis full
 ```
 
 ### 指标分析
 
 ```bash
-python scripts/analyze.py --country CN --analysis indicators
+python openfinance/agents/skills/builtin/macro-analysis/scripts/analyze.py --country CN --analysis indicators
 ```
 
 ### 经济周期分析
 
 ```bash
-python scripts/analyze.py --country CN --analysis cycle
+python openfinance/agents/skills/builtin/macro-analysis/scripts/analyze.py --country CN --analysis cycle
 ```
 
 ### 政策影响分析
 
 ```bash
-python scripts/analyze.py --country CN --analysis policy
+python openfinance/agents/skills/builtin/macro-analysis/scripts/analyze.py --country CN --analysis policy
 ```
 
 ## 多轮交互机制
@@ -187,5 +205,5 @@ python scripts/analyze.py --country CN --analysis policy
 
 ## 相关文档
 
-- [数据服务接口文档](/datacenter/docs)
-- [智能分析服务](/api/dataservice/v1/services/analysis-service)
+- [数据服务接口文档](/api/datacenter)
+- [智能分析服务](/api/analysis-service)

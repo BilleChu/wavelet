@@ -11,7 +11,7 @@ Usage:
     register_all_mappings()
 """
 
-from openfinance.datacenter.ads import (
+from openfinance.datacenter.models.analytical import (
     ADSKLineModel,
     ADSMoneyFlowModel,
     ADSOptionQuoteModel,

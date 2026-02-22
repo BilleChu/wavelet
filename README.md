@@ -2,7 +2,7 @@
 
 <div align="center">
 
-![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)
+![Version](https://img.shields.io/badge/version-3.1.0-blue.svg)
 ![Python](https://img.shields.io/badge/python-3.11+-green.svg)
 ![TypeScript](https://img.shields.io/badge/typescript-5.0+-blue.svg)
 ![License](https://img.shields.io/badge/license-MIT-orange.svg)
@@ -44,6 +44,15 @@ OpenFinance（WaveletTrader）是一个基于大语言模型（LLM）的智能�
 - **角色观点**: "巴菲特怎么看比亚迪"
 - **股票排名**: "市盈率最低的银行股有哪些"
 
+#### 新特性
+
+| 特性 | 描述 |
+|------|------|
+| **流式Markdown渲染** | 使用Streamdown组件优雅处理不完整的Markdown内容 |
+| **工具调用展示** | 显示工具名称、参数、执行结果和耗时 |
+| **Stop按钮** | 支持随时停止生成，调用后端停止接口 |
+| **思考过程展示** | 显示AI思考过程，增强可解释性 |
+
 ### 🎭 角色扮演
 
 模拟投资大师的投资风格和观点：
@@ -60,6 +69,23 @@ OpenFinance（WaveletTrader）是一个基于大语言模型（LLM）的智能�
 - **行业分析**: 行业对比、产业链分析、景气度跟踪
 - **宏观分析**: GDP、CPI、PMI等宏观指标
 - **新闻资讯**: 财经新闻、公告速递、研报精选
+
+### 🏗️ 统一类型系统
+
+采用 **YAML驱动的类型定义**，实现单一数据源：
+
+```python
+from openfinance.domain.types import EntityType, get_entity_label
+
+# 获取实体类型
+entity_type = EntityType.COMPANY  # "company"
+
+# 获取中文标签
+label = get_entity_label("company")  # "公司"
+
+# 验证类型
+is_valid = is_valid_entity_type("stock")  # True
+```
 
 ### 🔧 系统管理
 
@@ -81,6 +107,7 @@ OpenFinance（WaveletTrader）是一个基于大语言模型（LLM）的智能�
 │  │                         前端应用层                                  │ │
 │  │                    Next.js 14 + React 18                          │ │
 │  │              TailwindCSS + Radix UI + ECharts                     │ │
+│  │                    Streamdown (Markdown渲染)                       │ │
 │  └───────────────────────────────────────────────────────────────────┘ │
 │                                   │                                     │
 │                                   ▼                                     │
@@ -99,8 +126,15 @@ OpenFinance（WaveletTrader）是一个基于大语言模型（LLM）的智能�
 │                                   │                                     │
 │                                   ▼                                     │
 │  ┌───────────────────────────────────────────────────────────────────┐ │
+│  │                         领域类型层                                  │ │
+│  │              YAML驱动 + 动态加载 + 类型安全                         │ │
+│  │           EntityType / RelationType / FactorType                  │ │
+│  └───────────────────────────────────────────────────────────────────┘ │
+│                                   │                                     │
+│                                   ▼                                     │
+│  ┌───────────────────────────────────────────────────────────────────┐ │
 │  │                         LLM引擎层                                   │ │
-│  │              OpenAI / Claude / 本地模型                             │ │
+│  │              OpenAI / Claude / Qwen                                │ │
 │  │           LangGraph / LangChain / Prompt管理                       │ │
 │  └───────────────────────────────────────────────────────────────────┘ │
 │                                   │                                     │
@@ -141,6 +175,7 @@ OpenFinance（WaveletTrader）是一个基于大语言模型（LLM）的智能�
 | TailwindCSS | 3.4+ | 样式框架 |
 | Radix UI | 1.0+ | 无障碍组件库 |
 | ECharts | 5.4+ | 图表库 |
+| Streamdown | 2.3+ | 流式Markdown渲染 |
 | Zustand | 4.4+ | 状态管理 |
 | Axios | 1.6+ | HTTP客户端 |
 
@@ -182,7 +217,7 @@ cp ../.env.example .env
 # 编辑 .env 文件，配置必要的API密钥和数据库连接
 
 # 启动后端服务
-python -m uvicorn openfinance.api.main:app --reload --port 19100
+python -m uvicorn openfinance.api.main:app --reload --port 8000
 ```
 
 #### 3. 前端设置
@@ -201,8 +236,8 @@ npm run dev
 #### 4. 访问应用
 
 - 前端: http://localhost:3000
-- API文档: http://localhost:19100/docs
-- ReDoc: http://localhost:19100/redoc
+- API文档: http://localhost:8000/docs
+- ReDoc: http://localhost:8000/redoc
 
 ### Docker部署
 
@@ -227,70 +262,61 @@ openfinance/
 │   ├── openfinance/
 │   │   ├── api/               # API路由
 │   │   │   ├── routes/        # 路由模块
-│   │   │   │   ├── chat.py    # 聊天API
+│   │   │   │   ├── chat.py    # 聊天API (含stream/stop)
 │   │   │   │   ├── health.py  # 健康检查
 │   │   │   │   ├── intent.py  # 意图识别
 │   │   │   │   ├── skills.py  # 技能管理
 │   │   │   │   └── tools.py   # 工具管理
 │   │   │   ├── main.py        # FastAPI应用
 │   │   │   └── websocket.py   # WebSocket处理
-│   │   ├── agent/             # Agent模块
+│   │   ├── agents/            # Agent模块
 │   │   │   ├── core/          # 核心引擎
-│   │   │   │   ├── base_agent.py
+│   │   │   │   ├── loop.py    # Agent循环 (含tool_call_id)
 │   │   │   │   ├── graph.py   # LangGraph编排
 │   │   │   │   └── state.py   # 状态管理
-│   │   │   └── role/          # 角色扮演
-│   │   │       └── roles.py   # 投资大师角色
+│   │   │   └── tools/         # 工具定义
+│   │   │       └── builtin.py # 内置工具 (stock_price等)
+│   │   ├── domain/            # 领域模型
+│   │   │   ├── types/         # 统一类型系统 (新增)
+│   │   │   │   ├── entity.py  # EntityType
+│   │   │   │   ├── relation.py # RelationType
+│   │   │   │   └── converters.py # 类型转换
+│   │   │   ├── models/        # Pydantic模型
+│   │   │   └── metadata/      # 元数据配置
+│   │   │       ├── config/    # YAML配置
+│   │   │       ├── loader.py  # YAML加载器
+│   │   │       └── registry.py # 类型注册中心
 │   │   ├── datacenter/        # 数据中心
 │   │   │   ├── collector/     # 数据采集
 │   │   │   ├── processor/     # 数据处理
-│   │   │   └── provider/      # 数据服务
-│   │   ├── models/            # 数据模型
-│   │   │   ├── base.py        # 基础模型
-│   │   │   ├── intent.py      # 意图模型
-│   │   │   ├── skill.py       # 技能模型
-│   │   │   └── tool.py        # 工具模型
-│   │   ├── skills/            # 技能系统
-│   │   │   ├── lifecycle/     # 生命周期管理
-│   │   │   ├── priority/      # 优先级排序
-│   │   │   ├── registry/      # 技能注册
-│   │   │   └── error/         # 错误处理
-│   │   └── tools/             # 工具系统
-│   │       ├── registry.py    # 工具注册
-│   │       ├── stock/         # 股票工具
-│   │       └── market/        # 市场工具
+│   │   │   └── models/        # ORM模型
+│   │   │       └── orm.py     # SQLAlchemy模型
+│   │   └── infrastructure/    # 基础设施
+│   │       └── database/      # 数据库连接
 │   ├── tests/                 # 测试文件
-│   │   └── test_api_integration.py
 │   ├── Dockerfile
 │   └── pyproject.toml
 │
 ├── frontend/                   # 前端应用
 │   ├── app/                    # Next.js App Router
 │   │   ├── finchat/           # 金融聊天页面
-│   │   │   └── page.tsx
+│   │   │   └── page.tsx       # 主页面 (含Stop按钮)
 │   │   ├── layout.tsx         # 根布局
 │   │   ├── page.tsx           # 首页
 │   │   └── globals.css        # 全局样式
 │   ├── components/            # 组件
 │   │   └── ui/                # UI组件
 │   │       ├── button.tsx
-│   │       └── card.tsx
-│   ├── lib/                   # 工具库
-│   │   └── utils.ts
+│   │       ├── card.tsx
+│   │       ├── badge.tsx
+│   │       └── StreamMarkdown.tsx # 流式Markdown渲染 (新增)
 │   ├── services/              # 服务层
 │   │   ├── apiConfig.ts       # API配置
 │   │   └── FinchatServices/   # 聊天服务
+│   │       └── index.ts       # 含stopGeneration方法
 │   ├── tests/                 # E2E测试
-│   │   └── e2e/
-│   │       ├── login.spec.ts
-│   │       ├── home.spec.ts
-│   │       ├── finchat.spec.ts
-│   │       ├── skills.spec.ts
-│   │       └── agents.spec.ts
 │   ├── Dockerfile
 │   ├── package.json
-│   ├── playwright.config.ts
-│   ├── tailwind.config.ts
 │   └── tsconfig.json
 │
 ├── .env.example               # 环境变量示例
@@ -313,10 +339,10 @@ GET /api/health/ready
 GET /api/health/live
 ```
 
-#### 智能问答
+#### 智能问答（流式）
 
 ```http
-POST /api/chat
+POST /api/chat/stream
 Content-Type: application/json
 
 {
@@ -330,8 +356,30 @@ Content-Type: application/json
     "user_name": "张三",
     "role": "user"
   },
-  "query": "浦发银行的市盈率是多少",
-  "stream": false
+  "query": "浦发银行的市盈率是多少"
+}
+```
+
+**SSE事件类型:**
+
+| 事件类型 | 描述 |
+|----------|------|
+| `thinking` | AI思考过程 |
+| `progress` | 工具执行进度 (含tool_call_id) |
+| `tool_result` | 工具执行结果 (含tool_call_id) |
+| `content` | 流式内容输出 |
+| `final` | 最终结果 |
+
+#### 停止生成
+
+```http
+POST /api/chat/stop
+Content-Type: application/json
+
+{
+  "user": {
+    "ldap_id": "user123"
+  }
 }
 ```
 
@@ -370,7 +418,14 @@ GET /api/skills/{skill_id}        # 获取技能详情
 GET /api/skills/stats/summary     # 技能统计
 ```
 
-完整API文档请访问: http://localhost:19100/docs
+#### 元数据类型
+
+```http
+GET /api/metadata/entity-types    # 获取实体类型
+GET /api/metadata/relation-types  # 获取关系类型
+```
+
+完整API文档请访问: http://localhost:8000/docs
 
 ---
 
@@ -439,7 +494,7 @@ npm run start
 ```bash
 cd backend
 docker build -t openfinance-backend .
-docker run -p 19100:19100 openfinance-backend
+docker run -p 8000:8000 openfinance-backend
 ```
 
 ### Kubernetes部署
@@ -461,7 +516,7 @@ spec:
       - name: backend
         image: openfinance-backend:latest
         ports:
-        - containerPort: 19100
+        - containerPort: 8000
       - name: frontend
         image: openfinance-frontend:latest
         ports:
@@ -510,13 +565,13 @@ settings = Settings()
 
 ```bash
 # 检查服务状态
-curl http://localhost:19100/api/health
+curl http://localhost:8000/api/health
 
 # 就绪检查
-curl http://localhost:19100/api/health/ready
+curl http://localhost:8000/api/health/ready
 
 # 存活检查
-curl http://localhost:19100/api/health/live
+curl http://localhost:8000/api/health/live
 ```
 
 ### 日志配置
@@ -574,6 +629,7 @@ logging.basicConfig(
 - [Next.js](https://nextjs.org/)
 - [LangChain](https://langchain.com/)
 - [LangGraph](https://langchain-ai.github.io/langgraph/)
+- [Streamdown](https://github.com/vercel/streamdown)
 - [AKShare](https://akshare.akfamily.xyz/)
 - [Tushare](https://tushare.pro/)
 
@@ -586,4 +642,3 @@ logging.basicConfig(
 Made with ❤️ by OpenFinance Team
 
 </div>
-# wavelet

@@ -15,6 +15,7 @@ export interface StreamMessage {
   tool_name?: string
   tool_args?: Record<string, unknown>
   tool_result?: string
+  tool_call_id?: string
   success?: boolean
   duration_ms?: number
   progress?: number
@@ -25,9 +26,9 @@ export interface StreamMessage {
 export interface StreamCallbacks {
   onStatus?: (message: string, progress: number) => void
   onThinking?: (iteration: number, content: string, hasToolCalls: boolean) => void
-  onToolCall?: (toolName: string, toolArgs: Record<string, unknown>) => void
-  onToolResult?: (toolName: string, success: boolean, durationMs?: number, result?: string, toolArgs?: Record<string, unknown>) => void
-  onProgress?: (message: string, progress: number, toolName?: string, toolArgs?: Record<string, unknown>) => void
+  onToolCall?: (toolName: string, toolArgs: Record<string, unknown>, toolCallId?: string) => void
+  onToolResult?: (toolName: string, success: boolean, durationMs?: number, result?: string, toolArgs?: Record<string, unknown>, toolCallId?: string) => void
+  onProgress?: (message: string, progress: number, toolName?: string, toolArgs?: Record<string, unknown>, toolCallId?: string) => void
   onError?: (error: string) => void
   onContentStart?: () => void
   onContentChunk?: (chunk: string) => void
@@ -52,6 +53,13 @@ export const chatService = {
       stream: false,
     })
     return response.data
+  },
+
+  async clearHistory(sessionId?: string): Promise<void> {
+    await apiClient.post('/api/chat/clear', {
+      session_id: sessionId,
+      user_id: 'user',
+    })
   },
 
   async *streamMessage(query: string, role?: string): AsyncGenerator<string> {
@@ -199,10 +207,11 @@ export const chatService = {
                     parsed.message,
                     parsed.progress ?? 0,
                     parsed.tool_name,
-                    parsed.tool_args
+                    parsed.tool_args,
+                    parsed.tool_call_id
                   )
                   if (parsed.tool_name && parsed.tool_args) {
-                    callbacks.onToolCall?.(parsed.tool_name, parsed.tool_args)
+                    callbacks.onToolCall?.(parsed.tool_name, parsed.tool_args, parsed.tool_call_id)
                   }
                 }
                 break
@@ -213,7 +222,8 @@ export const chatService = {
                     parsed.success ?? true,
                     parsed.duration_ms,
                     parsed.tool_result,
-                    parsed.tool_args
+                    parsed.tool_args,
+                    parsed.tool_call_id
                   )
                 }
                 break
@@ -242,6 +252,32 @@ export const chatService = {
           }
         }
       }
+    }
+  },
+
+  async stopGeneration(): Promise<void> {
+    try {
+      await fetch(`${API_BASE_URL}/api/chat/stop`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          meta: {
+            trace_id: `${Date.now()}`,
+            source: 'web_client',
+            platform: 'web',
+          },
+          user: {
+            ldap_id: 'user',
+            user_name: 'User',
+            role: 'user',
+          },
+          query: '',
+        }),
+      })
+    } catch (e) {
+      console.error('Failed to stop generation:', e)
     }
   },
 }

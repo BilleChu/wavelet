@@ -1,3 +1,0 @@
-"""
-Quant Factor Creator Scripts
-"""

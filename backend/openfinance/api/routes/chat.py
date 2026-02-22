@@ -38,6 +38,12 @@ class ChatMessage(BaseModel):
     content: str = Field(..., description="Message content")
 
 
+class ClearHistoryRequest(BaseModel):
+    """Request for clearing conversation history."""
+    session_id: str | None = Field(default=None, description="Session ID to clear")
+    user_id: str = Field(default="anonymous", description="User ID")
+
+
 class SkillChatRequest(BaseModel):
     """Request for skill-based chat."""
     query: str = Field(..., description="User query")
@@ -120,18 +126,7 @@ class ChatService:
         """Build system prompt with skill content."""
         parts = []
         
-        parts.append("""# OpenFinance Agent
-
-You are an intelligent financial assistant with access to tools that allow you to:
-- Analyze financial data and investments
-- Use specialized skills for complex tasks
-- Provide professional investment advice
-
-## Capabilities
-- Stock analysis and valuation
-- Macroeconomic analysis
-- Technical indicator analysis
-- Investment strategy recommendations""")
+        parts.append("""# OpenFinance Agent You are an intelligent financial assistant """)
         
         if skill:
             parts.append(f"""
@@ -179,18 +174,13 @@ async def chat(request: AgentFlowRequest) -> AgentFlowResponse:
     """Process a chat request (non-streaming)."""
     service = get_chat_service()
     agent_loop = service.get_agent_loop()
-    
-    skill_name = service.detect_skill(request.query, request.role)
-    skill = service.get_skill(skill_name)
-    system_prompt = service.build_system_prompt(skill_name, skill)
-    
+        
     session_key = f"web:{request.user.ldap_id}"
     final_content = None
     
     async for event in agent_loop.stream_process(
         content=request.query,
         session_key=session_key,
-        system_prompt=system_prompt,
     ):
         if event.type == "final":
             final_content = event.content
@@ -198,7 +188,7 @@ async def chat(request: AgentFlowRequest) -> AgentFlowResponse:
     return AgentFlowResponse(
         success=True,
         content=final_content or "No response generated",
-        trace_id=f"chat_{skill_name}",
+        trace_id=f"chat_default",
     )
 
 
@@ -208,9 +198,7 @@ async def chat_stream(request: AgentFlowRequest):
     service = get_chat_service()
     agent_loop = service.get_agent_loop()
     
-    skill_name = service.detect_skill(request.query, request.role)
-    skill = service.get_skill(skill_name)
-    system_prompt = service.build_system_prompt(skill_name, skill)
+    # system_prompt = service.build_system_prompt(None, None)
     
     session_id = None
     if request.meta and request.meta.extended_info:
@@ -222,7 +210,7 @@ async def chat_stream(request: AgentFlowRequest):
         async for event in agent_loop.stream_process(
             content=request.query,
             session_key=session_key,
-            system_prompt=system_prompt,
+            # system_prompt=system_prompt,
         ):
             yield event_to_sse(event)
         
@@ -237,6 +225,38 @@ async def chat_stream(request: AgentFlowRequest):
             "X-Accel-Buffering": "no",
         },
     )
+
+
+@router.post("/chat/stop")
+async def chat_stop(request: AgentFlowRequest) -> dict[str, Any]:
+    """Stop a streaming chat request."""
+    service = get_chat_service()
+    agent_loop = service.get_agent_loop()
+    
+    agent_loop.stop()
+    
+    return {
+        "success": True,
+        "message": "Chat stopped",
+    }
+
+
+@router.post("/chat/clear")
+async def chat_clear(request: ClearHistoryRequest) -> dict[str, Any]:
+    """Clear conversation history for a session."""
+    service = get_chat_service()
+    session_manager = service.get_session_manager()
+    
+    session_key = f"web:{request.user_id}:{request.session_id}" if request.session_id else f"web:{request.user_id}"
+    
+    session = session_manager.get_or_create(session_key)
+    session.clear()
+    session_manager.save(session)
+    
+    return {
+        "success": True,
+        "message": "Conversation history cleared",
+    }
 
 
 @router.post("/chat/skill/{skill_id}")

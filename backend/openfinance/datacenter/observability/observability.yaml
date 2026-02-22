@@ -1,0 +1,74 @@
+# Observability Configuration
+# Unified configuration for quality and monitoring
+
+# Quality settings
+quality:
+  default_thresholds:
+    completeness: 0.95
+    accuracy: 0.99
+    timeliness_hours: 24
+  
+  enabled_dimensions:
+    - completeness
+    - accuracy
+    - timeliness
+    - consistency
+    - uniqueness
+    - validity
+
+# Monitoring settings  
+monitoring:
+  max_alerts: 10000
+  max_metrics: 100000
+  max_records: 10000
+  
+  # Prometheus metrics
+  metrics:
+    enabled: true
+    port: 9090
+    namespace: "datacenter"
+
+# Alert settings
+alerts:
+  channels:
+    - type: log
+      enabled: true
+    - type: webhook
+      enabled: false
+      config:
+        url: ""
+        headers: {}
+  
+  rules:
+    - rule_id: high_error_rate
+      name: "High Error Rate"
+      description: "Alert when error rate exceeds 10%"
+      condition: "error_rate > 0.1"
+      severity: warning
+      cooldown_minutes: 5
+      
+    - rule_id: slow_task
+      name: "Slow Task Execution"
+      description: "Alert when task takes longer than 5 minutes"
+      condition: "duration > 300"
+      severity: warning
+      cooldown_minutes: 10
+      
+    - rule_id: low_quality
+      name: "Low Data Quality"
+      description: "Alert when data quality score is below 80%"
+      condition: "quality_score < 0.8"
+      severity: warning
+      cooldown_minutes: 30
+      
+    - rule_id: collection_failure
+      name: "Collection Failure"
+      description: "Alert on collection failures"
+      condition: "status == 'failed'"
+      severity: error
+      cooldown_minutes: 5
+
+# Lineage settings
+lineage:
+  enabled: true
+  max_depth: 10

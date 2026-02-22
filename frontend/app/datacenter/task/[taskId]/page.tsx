@@ -182,7 +182,7 @@ export default function TaskDetailPage() {
 
   const fetchData = useCallback(async () => {
     try {
-      const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:19100';
+      const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
       const chainRes = await fetch(`${API_BASE_URL}/api/datacenter/chains/${taskId}`)
       if (chainRes.ok) {
         const data = await chainRes.json()
@@ -230,7 +230,7 @@ export default function TaskDetailPage() {
   const handleTaskAction = async (action: 'start' | 'pause' | 'cancel') => {
     setActionLoading(true)
     try {
-      const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:19100';
+      const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
       await fetch(`${API_BASE_URL}/api/datacenter/tasks/${taskId}/${action}`, { method: 'PUT' })
       fetchData()
     } catch (error) {
@@ -243,7 +243,7 @@ export default function TaskDetailPage() {
   const handleExecuteChain = async () => {
     setActionLoading(true)
     try {
-      const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:19100';
+      const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
       await fetch(`${API_BASE_URL}/api/datacenter/chains/${taskId}/execute`, { method: 'POST' })
       fetchData()
     } catch (error) {

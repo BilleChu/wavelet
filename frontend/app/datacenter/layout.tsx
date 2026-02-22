@@ -15,6 +15,7 @@ import {
 
 const subTabs = [
   { key: 'collection', label: '数据采集', icon: Activity, path: '/datacenter' },
+  { key: 'pipeline', label: '任务链路', icon: Database, path: '/datacenter/pipeline' },
   { key: 'service', label: '数据服务', icon: Server, path: '/datacenter/service' },
 ]
 
@@ -41,7 +42,7 @@ export default function DataCenterLayout({
     return () => clearInterval(interval)
   }, [])
 
-  const activeTab = pathname === '/datacenter' ? 'collection' : 'service'
+  const activeTab = pathname === '/datacenter' ? 'collection' : pathname.includes('/pipeline') ? 'pipeline' : 'service'
 
   return (
     <div className="min-h-screen bg-[var(--bg-primary)]">

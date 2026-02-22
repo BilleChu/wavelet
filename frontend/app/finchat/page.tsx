@@ -2,8 +2,9 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { chatService, type ChatResponse, type StreamCallbacks } from '@/services/FinchatServices'
-import { Send, Bot, User, Loader2, Sparkles, Copy, Check, RefreshCw, ChevronDown, MessageSquare, Wrench, CheckCircle, XCircle } from 'lucide-react'
+import { Send, Bot, User, Loader2, Sparkles, Copy, Check, RefreshCw, ChevronDown, MessageSquare, Wrench, CheckCircle, XCircle, Square } from 'lucide-react'
 import { Button, Badge, DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '@/components/ui'
+import StreamMarkdown from '@/components/ui/StreamMarkdown'
 
 interface Message {
   id: string
@@ -17,14 +18,14 @@ interface Message {
   isStreaming?: boolean
   status?: string
   statusMessage?: string
-  toolCalls?: { name: string; success: boolean; duration?: number; result?: string; args?: Record<string, unknown> }[]
+  toolCalls?: { id: string; name: string; success: boolean; duration?: number; result?: string; args?: Record<string, unknown> }[]
   thinkingSteps?: { iteration: number; content: string; hasToolCalls: boolean }[]
 }
 
 interface ProcessingStatus {
   status: string
   message: string
-  toolCalls: { name: string; success: boolean; duration?: number; result?: string; args?: Record<string, unknown> }[]
+  toolCalls: { id: string; name: string; success: boolean; duration?: number; result?: string; args?: Record<string, unknown> }[]
 }
 
 interface ProgressStage {
@@ -32,6 +33,7 @@ interface ProgressStage {
   message: string
   progress: number
   toolName?: string
+  toolId?: string
   toolArgs?: string
   toolResult?: string
   timestamp: Date
@@ -149,17 +151,20 @@ export default function FinchatPage() {
               )
             )
           },
-          onToolCall: (toolName, toolArgs) => {
+          onToolCall: (toolName, toolArgs, toolCallId) => {
+            const id = toolCallId || `${toolName}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+            const newToolCall = { id, name: toolName, success: true, args: toolArgs } as { id: string; name: string; success: boolean; duration?: number; result?: string; args?: Record<string, unknown> }
             setProcessingStatus((prev) => ({
               status: 'tool_call',
               message: `正在调用工具：${toolName}`,
-              toolCalls: [...(prev?.toolCalls || []), { name: toolName, success: true, args: toolArgs }],
+              toolCalls: [...(prev?.toolCalls || []), newToolCall],
             }))
             setProgressStages((prev) => [...prev, {
               stage: 'tool_call',
               message: `准备调用工具：${toolName}`,
               progress: 0.2,
               toolName,
+              toolId: id,
               timestamp: new Date(),
             }])
             setMessages((prev) =>
@@ -167,20 +172,20 @@ export default function FinchatPage() {
                 msg.id === assistantMessageId
                   ? {
                       ...msg,
-                      toolCalls: [...(msg.toolCalls || []), { name: toolName, success: true, args: toolArgs }],
+                      toolCalls: [...(msg.toolCalls || []), newToolCall],
                     }
                   : msg
               )
             )
           },
-          onToolResult: (toolName, success, durationMs, result, toolArgs) => {
+          onToolResult: (toolName, success, durationMs, result, toolArgs, toolCallId) => {
             setProcessingStatus((prev) => ({
               status: 'tool_result',
               message: success
                 ? `工具 ${toolName} 执行完成 (${durationMs?.toFixed(0)}ms)`
                 : `工具 ${toolName} 执行失败`,
               toolCalls: (prev?.toolCalls || []).map((tc) =>
-                tc.name === toolName && tc.result === undefined ? { ...tc, success, duration: durationMs, result, args: toolArgs } : tc
+                tc.id === toolCallId || (tc.name === toolName && tc.result === undefined) ? { ...tc, success, duration: durationMs, result, args: toolArgs } : tc
               ),
             }))
             setMessages((prev) =>
@@ -189,14 +194,14 @@ export default function FinchatPage() {
                   ? {
                       ...msg,
                       toolCalls: (msg.toolCalls || []).map((tc) =>
-                        tc.name === toolName && tc.result === undefined ? { ...tc, success, duration: durationMs, result, args: toolArgs } : tc
+                        tc.id === toolCallId || (tc.name === toolName && tc.result === undefined) ? { ...tc, success, duration: durationMs, result, args: toolArgs } : tc
                       ),
                     }
                   : msg
               )
             )
             setProgressStages((prev) => prev.map(stage => 
-              stage.toolName === toolName 
+              stage.toolId === toolCallId || stage.toolName === toolName
                 ? { 
                     ...stage, 
                     stage: success ? 'tool_complete' : 'tool_error', 
@@ -309,8 +314,17 @@ export default function FinchatPage() {
     setTimeout(() => setCopiedId(null), 2000)
   }
 
-  const clearConversation = () => {
+  const clearConversation = async () => {
     setMessages([])
+    setProgressStages([])
+    setProcessingStatus(null)
+    try {
+      await chatService.clearHistory(sessionId)
+      const newSessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+      setSessionId(newSessionId)
+    } catch (error) {
+      console.error('Failed to clear history:', error)
+    }
   }
 
   return (
@@ -522,8 +536,34 @@ export default function FinchatPage() {
                           </div>
                         </div>
                       )}
-                      {/* Then show content */}
-                      <p className="whitespace-pre-wrap text-zinc-200 leading-relaxed text-[15px]">{message.content}</p>
+                      
+                      {/* Show streaming/loading status */}
+                      {message.role === 'assistant' && message.isStreaming && (
+                        <div className="mb-3 pb-3 border-b border-white/[0.05]">
+                          <div className="flex items-center gap-3">
+                            <Loader2 className="w-4 h-4 animate-spin text-amber-400" />
+                            <span className="text-zinc-400 text-sm">{processingStatus?.message || '正在思考中...'}</span>
+                          </div>
+                          {progressStages.length > 0 && (
+                            <div className="mt-3 space-y-1.5 max-h-32 overflow-y-auto">
+                              {progressStages.map((stage, idx) => (
+                                <div key={idx} className="flex items-start gap-2 text-xs">
+                                  <div className={`mt-0.5 w-1.5 h-1.5 rounded-full flex-shrink-0 ${
+                                    stage.progress > 0.5 ? 'bg-green-500' : 
+                                    stage.progress > 0 ? 'bg-amber-500 animate-pulse' : 
+                                    'bg-zinc-600'
+                                  }`} />
+                                  <div className="text-zinc-500 truncate">{stage.message}</div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      {/* Then show content with markdown rendering */}
+                      {message.content && (
+                        <StreamMarkdown content={message.content} />
+                      )}
                       <div className="flex items-center justify-between mt-3 pt-3 border-t border-white/[0.05]">
                         <span className="text-xs text-zinc-600">
                           {message.timestamp.toLocaleTimeString()}
@@ -552,8 +592,8 @@ export default function FinchatPage() {
                 </div>
               ))}
 
-              {/* Loading indicator shows as a separate "thinking" message */}
-              {loading && (
+              {/* Loading indicator integrated into streaming message - only show if no assistant message exists */}
+              {loading && !messages.some(m => m.role === 'assistant' && m.isStreaming) && (
                 <div className="flex gap-4 animate-fade-in">
                   <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center shadow-lg shadow-amber-500/20 flex-shrink-0 animate-pulse-glow">
                     <Bot className="w-5 h-5 text-white" />
@@ -628,15 +668,34 @@ export default function FinchatPage() {
                 style={{ minHeight: '56px', maxHeight: '120px' }}
               />
             </div>
-            <Button
-              onClick={handleSend}
-              disabled={loading || !input.trim()}
-              size="lg"
-              className="h-14 px-6"
-            >
-              <Send className="w-5 h-5" />
-              <span className="hidden sm:inline ml-2">发送</span>
-            </Button>
+            {loading ? (
+              <Button
+                onClick={async () => {
+                  await chatService.stopGeneration()
+                  setLoading(false)
+                  setMessages((prev) =>
+                    prev.map((msg) =>
+                      msg.isStreaming ? { ...msg, isStreaming: false } : msg
+                    )
+                  )
+                }}
+                size="lg"
+                className="h-14 px-6 bg-red-600 hover:bg-red-700"
+              >
+                <Square className="w-5 h-5" />
+                <span className="hidden sm:inline ml-2">停止</span>
+              </Button>
+            ) : (
+              <Button
+                onClick={handleSend}
+                disabled={!input.trim()}
+                size="lg"
+                className="h-14 px-6"
+              >
+                <Send className="w-5 h-5" />
+                <span className="hidden sm:inline ml-2">发送</span>
+              </Button>
+            )}
           </div>
           <div className="flex items-center justify-between mt-3 px-1">
             <p className="text-xs text-zinc-600">

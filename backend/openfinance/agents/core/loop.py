@@ -33,6 +33,7 @@ class LoopEvent:
     tool_name: Optional[str] = None
     tool_args: Optional[dict[str, Any]] = None
     tool_result: Optional[str] = None
+    tool_call_id: Optional[str] = None
     success: bool = True
     duration_ms: float = 0.0
     has_tool_calls: bool = False
@@ -177,6 +178,8 @@ class AgentLoop:
         start_time = time.time()
         config = stream_config or StreamConfig(max_iterations=self.max_iterations)
         
+        self._running = True
+        
         session = self.sessions.get_or_create(session_key)
         
         if history is None:
@@ -193,7 +196,7 @@ class AgentLoop:
             messages.extend(history)
         
         messages.append({"role": "user", "content": content})
-        
+        print(f"messages: {messages}")
         session.add_message("user", content)
         
         yield LoopEvent(
@@ -207,7 +210,7 @@ class AgentLoop:
         final_content = None
         total_tool_calls = 0
         
-        while iteration < config.max_iterations:
+        while iteration < config.max_iterations and self._running:
             iteration += 1
             
             yield LoopEvent(
@@ -216,6 +219,10 @@ class AgentLoop:
                 message=f"思考中 (第{iteration}轮)...",
                 progress=0.1 + (iteration * 0.05),
             )
+            
+            if not self._running:
+                logger.info("Processing stopped by user request")
+                break
             
             try:
                 response = await self._call_llm(messages, tools)
@@ -269,6 +276,7 @@ class AgentLoop:
             
             for tool_call in tool_calls:
                 tool_name = tool_call["function"]["name"]
+                tool_call_id = tool_call.get("id", f"{tool_name}-{time.time()}")
                 args_str = tool_call["function"]["arguments"]
                 
                 try:
@@ -285,6 +293,7 @@ class AgentLoop:
                     progress=0.3 + (iteration * 0.1),
                     tool_name=tool_name,
                     tool_args=args,
+                    tool_call_id=tool_call_id,
                 )
                 
                 tool_start_time = time.time()
@@ -304,6 +313,7 @@ class AgentLoop:
                             iteration=iteration,
                             tool_name=tool_name,
                             tool_args=args,
+                            tool_call_id=tool_call_id,
                             success=True,
                             duration_ms=duration_ms,
                             tool_result=result_preview,
@@ -319,6 +329,7 @@ class AgentLoop:
                         iteration=iteration,
                         tool_name=tool_name,
                         tool_args=args,
+                        tool_call_id=tool_call_id,
                         success=False,
                         duration_ms=duration_ms,
                         message=f"工具 {tool_name} 执行失败",
@@ -346,17 +357,21 @@ class AgentLoop:
             yield LoopEvent(type="content_start")
             
             streamed_content = []
-            summary_prompt = f"请用简洁专业的语言总结以下分析结果：\n\n{final_content}"
+            summary_prompt = f"请用专业的分析视角依旧以下内容：\n\n{final_content} \n\n 回复用户问题：{content}"
             
             try:
                 async for chunk in self.llm_client.stream([{"role": "user", "content": summary_prompt}]):
+                    if not self._running:
+                        logger.info("Stream stopped by user request")
+                        break
                     if chunk and isinstance(chunk, str):
                         streamed_content.append(chunk)
                         yield LoopEvent(type="content", content=chunk)
             except Exception as e:
                 logger.warning(f"Stream failed, using original content: {e}")
-                yield LoopEvent(type="content", content=final_content)
-                streamed_content = [final_content]
+                if self._running:
+                    yield LoopEvent(type="content", content=final_content)
+                    streamed_content = [final_content]
             
             final_content = "".join(streamed_content) if streamed_content else final_content
         else:
