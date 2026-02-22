@@ -181,3 +181,81 @@ pipelines:
         params: {}
         dependencies:
           - sync_company_entities
+
+  historical_data_sync:
+    name: "Historical Data Sync (2 Years)"
+    description: "Sync 2 years of historical trading data to database"
+    enabled: true
+    schedule:
+      type: manual
+    max_concurrent_tasks: 3
+    timeout_seconds: 7200
+    tasks:
+      - task_id: sync_stock_basic
+        name: "Sync Stock Basic Info"
+        task_type: stock_basic_info
+        priority: critical
+        timeout_seconds: 300
+        max_retries: 3
+        params:
+          market: "沪深A"
+        dependencies: []
+
+      - task_id: sync_daily_quotes_2y
+        name: "Sync 2 Years Daily Quotes"
+        task_type: stock_daily_quote
+        priority: high
+        timeout_seconds: 3600
+        max_retries: 3
+        params:
+          days: 730
+        dependencies:
+          - sync_stock_basic
+
+      - task_id: sync_index_quotes_2y
+        name: "Sync 2 Years Index Quotes"
+        task_type: index_daily_quote
+        priority: high
+        timeout_seconds: 600
+        max_retries: 3
+        params:
+          codes:
+            - "000001"
+            - "399001"
+            - "399006"
+            - "000300"
+            - "000905"
+            - "000016"
+          days: 730
+        dependencies: []
+
+      - task_id: sync_north_money
+        name: "Sync North Money Flow"
+        task_type: north_money
+        priority: normal
+        timeout_seconds: 300
+        max_retries: 3
+        params: {}
+        dependencies:
+          - sync_daily_quotes_2y
+
+      - task_id: sync_financial_indicator
+        name: "Sync Financial Indicators"
+        task_type: financial_indicator
+        priority: normal
+        timeout_seconds: 1200
+        max_retries: 3
+        params: {}
+        dependencies:
+          - sync_stock_basic
+
+      - task_id: sync_knowledge_graph
+        name: "Sync to Knowledge Graph"
+        task_type: sync_stock_entities
+        priority: low
+        timeout_seconds: 600
+        max_retries: 3
+        params:
+          batch_size: 500
+        dependencies:
+          - sync_stock_basic
