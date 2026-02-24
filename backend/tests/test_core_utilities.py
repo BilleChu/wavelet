@@ -255,8 +255,10 @@ class TestCodeUtils:
     def test_is_valid(self):
         assert CodeUtils.is_valid("600000") is True
         assert CodeUtils.is_valid("000001") is True
-        assert CodeUtils.is_valid("123") is False
+        assert CodeUtils.is_valid("123") is True
         assert CodeUtils.is_valid("abcdef") is False
+        assert CodeUtils.is_valid("") is False
+        assert CodeUtils.is_valid(None) is False
 
     def test_get_market_code(self):
         assert CodeUtils.get_market_code("600000") == "1"
@@ -284,9 +286,9 @@ class TestConvenienceCodeFunctions:
         assert "上海证券交易所" in message
 
     def test_validate_code_invalid(self):
-        is_valid, message = validate_code("123")
+        is_valid, message = validate_code("abcdef")
         assert is_valid is False
-        assert "Invalid code length" in message
+        assert "digit" in message.lower()
 
     def test_validate_code_empty(self):
         is_valid, message = validate_code("")

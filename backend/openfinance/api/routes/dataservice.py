@@ -244,7 +244,11 @@ async def get_company_insight(
     code: str,
     auth: AuthContext = Depends(authenticate_request),
 ) -> APIResponse:
-    """Get company insight data from ADS layer."""
+    """Get company insight data from ADS layer.
+    
+    Stock code format: Supports 6-digit code (000001), Wind format (000001.SZ),
+    or Eastmoney format (000001.SZ). All formats are normalized to 6-digit code.
+    """
     request_id = _generate_request_id()
     
     if not check_permission(auth, "read:analysis"):
@@ -258,6 +262,10 @@ async def get_company_insight(
     try:
         from sqlalchemy import select
         from openfinance.datacenter.models.orm import StockBasicModel, StockFinancialIndicatorModel
+        from openfinance.utils.stock_code import normalize_stock_code
+        
+        # Normalize stock code
+        code = normalize_stock_code(code)
         
         async with async_session_maker() as session:
             basic_query = select(StockBasicModel).where(StockBasicModel.code == code)
@@ -614,7 +622,11 @@ async def get_kline_data(
     limit: int = Query(100, ge=1, le=500, description="Number of records"),
     auth: AuthContext = Depends(authenticate_request),
 ) -> APIResponse:
-    """Get K-Line data from ADS layer."""
+    """Get K-Line data from ADS layer.
+    
+    Stock code format: Supports 6-digit code (000001), Wind format (000001.SZ),
+    or Eastmoney format (000001.SZ). All formats are normalized to 6-digit code.
+    """
     request_id = _generate_request_id()
     
     if not check_permission(auth, "read:market"):
@@ -628,6 +640,10 @@ async def get_kline_data(
     try:
         from sqlalchemy import select
         from openfinance.datacenter.models.orm import StockDailyQuoteModel
+        from openfinance.utils.stock_code import normalize_stock_code
+        
+        # Normalize stock code
+        code = normalize_stock_code(code)
         
         async with async_session_maker() as session:
             query = select(StockDailyQuoteModel).where(StockDailyQuoteModel.code == code)
@@ -677,7 +693,11 @@ async def get_financial_data(
     report_date: str | None = Query(None, description="Report date (YYYY-MM-DD)"),
     auth: AuthContext = Depends(authenticate_request),
 ) -> APIResponse:
-    """Get financial indicators from ADS layer."""
+    """Get financial indicators from ADS layer.
+    
+    Stock code format: Supports 6-digit code (000001), Wind format (000001.SZ),
+    or Eastmoney format (000001.SZ). All formats are normalized to 6-digit code.
+    """
     request_id = _generate_request_id()
     
     if not check_permission(auth, "read:market"):
@@ -691,6 +711,10 @@ async def get_financial_data(
     try:
         from sqlalchemy import select
         from openfinance.datacenter.models.orm import StockFinancialIndicatorModel
+        from openfinance.utils.stock_code import normalize_stock_code
+        
+        # Normalize stock code
+        code = normalize_stock_code(code)
         
         async with async_session_maker() as session:
             query = select(StockFinancialIndicatorModel).where(

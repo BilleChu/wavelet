@@ -659,6 +659,13 @@ class QuantService {
     return response.data
   }
 
+  async refreshFactors(): Promise<{ success: boolean; message: string; total_factors: number }> {
+    const response = await apiClient.post<{ success: boolean; message: string; total_factors: number }>(
+      `${this.baseUrl}/factors/refresh`
+    )
+    return response.data
+  }
+
   async getFactorCode(factorId: string): Promise<{
     factor_id: string
     name: string

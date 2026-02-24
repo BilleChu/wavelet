@@ -1,0 +1,440 @@
+# Persistence Configuration
+# 数据持久化配置文件
+
+database:
+  pool_size: 10
+  max_overflow: 20
+  pool_recycle: 3600
+  default_batch_size: 500
+
+tables:
+  # 行情数据
+  stock_daily_quote:
+    table_name: stock_daily_quote
+    schema_name: openfinance
+    primary_key: [code, trade_date]
+    unique_keys:
+      - [code, trade_date]
+    save_mode: upsert
+    batch_size: 1000
+    fields:
+      code:
+        type: string
+        required: true
+        source_fields: [code, symbol]
+      name:
+        type: string
+        source_fields: [name, stock_name]
+      trade_date:
+        type: date
+        required: true
+        source_fields: [trade_date, date]
+      open:
+        type: float
+      high:
+        type: float
+      low:
+        type: float
+      close:
+        type: float
+      volume:
+        type: float
+      amount:
+        type: float
+      change:
+        type: float
+        source_fields: [change, chg]
+      change_pct:
+        type: float
+        source_fields: [change_pct, pct_chg]
+      turnover_rate:
+        type: float
+      market_cap:
+        type: float
+
+  # 股票基础信息
+  stock_basic:
+    table_name: stock_basic
+    schema_name: openfinance
+    primary_key: [code]
+    unique_keys:
+      - [code]
+    save_mode: upsert
+    fields:
+      code:
+        type: string
+        required: true
+      name:
+        type: string
+        required: true
+      industry:
+        type: string
+      market:
+        type: string
+      list_date:
+        type: date
+      total_shares:
+        type: float
+      circulating_shares:
+        type: float
+      market_cap:
+        type: float
+      pe_ratio:
+        type: float
+      pb_ratio:
+        type: float
+
+  # 资金流向
+  stock_money_flow:
+    table_name: stock_money_flow
+    schema_name: openfinance
+    primary_key: [code, trade_date]
+    unique_keys:
+      - [code, trade_date]
+    save_mode: upsert
+    fields:
+      code:
+        type: string
+        required: true
+      name:
+        type: string
+      trade_date:
+        type: date
+        required: true
+      main_net_inflow:
+        type: float
+      main_net_inflow_pct:
+        type: float
+      super_large_net_inflow:
+        type: float
+      large_net_inflow:
+        type: float
+      medium_net_inflow:
+        type: float
+      small_net_inflow:
+        type: float
+
+  # 财务指标
+  stock_financial_indicator:
+    table_name: stock_financial_indicator
+    schema_name: openfinance
+    primary_key: [code, report_date]
+    unique_keys:
+      - [code, report_date]
+    save_mode: upsert
+    fields:
+      code:
+        type: string
+        required: true
+      name:
+        type: string
+      report_date:
+        type: date
+        required: true
+      eps:
+        type: float
+      bps:
+        type: float
+      roe:
+        type: float
+      roa:
+        type: float
+      gross_margin:
+        type: float
+      net_margin:
+        type: float
+      revenue:
+        type: float
+      net_profit:
+        type: float
+
+  # 北向资金
+  north_money:
+    table_name: north_money
+    schema_name: openfinance
+    primary_key: [trade_date]
+    unique_keys:
+      - [trade_date]
+    save_mode: upsert
+    fields:
+      trade_date:
+        type: date
+        required: true
+      sh_net_inflow:
+        type: float
+      sz_net_inflow:
+        type: float
+      total_net_inflow:
+        type: float
+        source_fields: [total_net_inflow, net_inflow]
+
+  # 新闻
+  news:
+    table_name: news
+    schema_name: openfinance
+    primary_key: [news_id]
+    unique_keys:
+      - [news_id]
+    save_mode: upsert
+    fields:
+      news_id:
+        type: string
+        required: true
+        source_fields: [news_id, id]
+      title:
+        type: string
+        required: true
+      content:
+        type: string
+      source:
+        type: string
+      category:
+        type: string
+      published_at:
+        type: datetime
+        source_fields: [published_at, publish_time]
+
+  # 行业行情
+  industry_quote:
+    table_name: industry_quote
+    schema_name: openfinance
+    primary_key: [code, trade_date]
+    unique_keys:
+      - [code, trade_date]
+    save_mode: upsert
+    fields:
+      code:
+        type: string
+        required: true
+      name:
+        type: string
+      trade_date:
+        type: date
+        required: true
+      open:
+        type: float
+      high:
+        type: float
+      low:
+        type: float
+      close:
+        type: float
+      volume:
+        type: float
+      amount:
+        type: float
+      change_pct:
+        type: float
+
+  # 概念行情
+  concept_quote:
+    table_name: concept_quote
+    schema_name: openfinance
+    primary_key: [code, trade_date]
+    unique_keys:
+      - [code, trade_date]
+    save_mode: upsert
+    fields:
+      code:
+        type: string
+        required: true
+      name:
+        type: string
+      trade_date:
+        type: date
+        required: true
+      open:
+        type: float
+      high:
+        type: float
+      low:
+        type: float
+      close:
+        type: float
+      volume:
+        type: float
+      amount:
+        type: float
+      change_pct:
+        type: float
+
+  # 公司档案
+  company_profile:
+    table_name: company_profile
+    schema_name: openfinance
+    primary_key: [code]
+    unique_keys:
+      - [code]
+    save_mode: upsert
+    fields:
+      code:
+        type: string
+        required: true
+      name:
+        type: string
+      industry:
+        type: string
+      sector:
+        type: string
+      description:
+        type: string
+      website:
+        type: string
+      employees:
+        type: integer
+
+  # 因子数据
+  factor_data:
+    table_name: factor_data
+    schema_name: openfinance
+    primary_key: [factor_id, code, trade_date]
+    unique_keys:
+      - [factor_id, code, trade_date]
+    save_mode: upsert
+    batch_size: 5000
+    fields:
+      factor_id:
+        type: string
+        required: true
+      code:
+        type: string
+        required: true
+      trade_date:
+        type: date
+        required: true
+      factor_name:
+        type: string
+      factor_category:
+        type: string
+      factor_value:
+        type: float
+      collected_at:
+        type: datetime
+
+  # 利润表
+  income_statement:
+    table_name: income_statement
+    schema_name: openfinance
+    primary_key: [code, report_date, report_period]
+    unique_keys:
+      - [code, report_date, report_period]
+    save_mode: upsert
+    fields:
+      code:
+        type: string
+        required: true
+      report_date:
+        type: date
+        required: true
+      report_period:
+        type: string
+        default: annual
+      total_revenue:
+        type: float
+      operating_revenue:
+        type: float
+      total_operating_cost:
+        type: float
+      cost_of_goods_sold:
+        type: float
+      gross_profit:
+        type: float
+      operating_profit:
+        type: float
+      total_profit:
+        type: float
+      net_profit:
+        type: float
+      net_profit_attr_parent:
+        type: float
+      basic_eps:
+        type: float
+      diluted_eps:
+        type: float
+
+  # 资产负债表
+  balance_sheet:
+    table_name: balance_sheet
+    schema_name: openfinance
+    primary_key: [code, report_date, report_period]
+    unique_keys:
+      - [code, report_date, report_period]
+    save_mode: upsert
+    fields:
+      code:
+        type: string
+        required: true
+      report_date:
+        type: date
+        required: true
+      report_period:
+        type: string
+        default: annual
+      total_assets:
+        type: float
+      total_liabilities:
+        type: float
+      total_equity:
+        type: float
+      net_equity_attr:
+        type: float
+      current_assets:
+        type: float
+      current_liabilities:
+        type: float
+      cash:
+        type: float
+      inventory:
+        type: float
+
+  # 股息数据
+  dividend_data:
+    table_name: dividend_data
+    schema_name: openfinance
+    primary_key: [code, report_year]
+    unique_keys:
+      - [code, report_year]
+    save_mode: upsert
+    fields:
+      code:
+        type: string
+        required: true
+      report_year:
+        type: string
+        required: true
+      ex_date:
+        type: date
+      dividend_per_share:
+        type: float
+      bonus_per_share:
+        type: float
+      transfer_per_share:
+        type: float
+      total_dividend:
+        type: float
+      dividend_yield:
+        type: float
+
+  # 宏观经济数据
+  macro_economic:
+    table_name: macro_economic
+    schema_name: openfinance
+    primary_key: [indicator_id, report_date]
+    unique_keys:
+      - [indicator_id, report_date]
+    save_mode: upsert
+    fields:
+      indicator_id:
+        type: string
+        required: true
+      indicator_name:
+        type: string
+      report_date:
+        type: date
+        required: true
+      value:
+        type: float
+      unit:
+        type: string
+      source:
+        type: string

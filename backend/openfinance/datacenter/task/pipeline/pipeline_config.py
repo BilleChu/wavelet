@@ -192,7 +192,7 @@ class PipelineRegistry:
         if config_path:
             self._config_path = Path(config_path)
         elif self._config_path is None:
-            self._config_path = Path(__file__) / "config" / "pipelines.yaml"
+            self._config_path = Path(__file__).parent / "config" / "pipelines.yaml"
         
         if not self._config_path.exists():
             logger.warning(f"Pipeline config file not found: {self._config_path}")

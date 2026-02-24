@@ -1,11 +1,12 @@
 """
-Configurable Data Persistence Module.
+优雅的数据持久化模块
 
-Provides:
-- Table configuration via YAML/JSON
-- Dynamic field mapping
-- Pluggable storage strategies
-- UPSERT/INSERT/APPEND modes
+基于配置文件的数据持久化实现，支持：
+- 表配置通过 YAML 文件管理
+- 动态字段映射
+- 多种保存模式（UPSERT/INSERT/APPEND）
+- 批量处理
+- ORM 模型支持
 """
 
 from __future__ import annotations
@@ -19,7 +20,7 @@ from datetime import date, datetime
 from enum import Enum
 from functools import wraps
 from pathlib import Path
-from typing import Any, Callable, Generic, TypeVar
+from typing import Any, Callable, Generic, TypeVar, TYPE_CHECKING
 
 import yaml
 from pydantic import BaseModel, Field
@@ -27,13 +28,16 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 from sqlalchemy.exc import IntegrityError, OperationalError, DBAPIError
 
+if TYPE_CHECKING:
+    from sqlalchemy.orm import DeclarativeBase
+
 logger = logging.getLogger(__name__)
 
 T = TypeVar('T')
 
 
 class SaveMode(str, Enum):
-    """Data save mode."""
+    """数据保存模式"""
     INSERT = "insert"
     UPSERT = "upsert"
     APPEND = "append"
@@ -41,7 +45,7 @@ class SaveMode(str, Enum):
 
 
 class FieldType(str, Enum):
-    """Field data types."""
+    """字段数据类型"""
     STRING = "string"
     INTEGER = "integer"
     FLOAT = "float"
@@ -53,7 +57,7 @@ class FieldType(str, Enum):
 
 @dataclass
 class FieldConfig:
-    """Configuration for a single field."""
+    """单个字段的配置"""
     
     name: str
     source_fields: list[str] = field(default_factory=list)
@@ -63,7 +67,7 @@ class FieldConfig:
     transform: Callable[[Any], Any] | None = None
     
     def get_value(self, data: dict[str, Any]) -> Any:
-        """Extract value from data using source fields."""
+        """从数据中提取值，使用源字段"""
         for source_field in self.source_fields or [self.name]:
             if source_field in data:
                 value = data[source_field]
@@ -80,7 +84,7 @@ class FieldConfig:
         return self._convert_type(value)
     
     def _convert_type(self, value: Any) -> Any:
-        """Convert value to target type."""
+        """转换值到目标类型"""
         if value is None:
             return None
         
@@ -128,31 +132,31 @@ class FieldConfig:
 
 
 class TableConfig(BaseModel):
-    """Configuration for a database table."""
+    """数据库表的配置"""
     
-    table_name: str = Field(..., description="Target table name")
-    schema_name: str = Field(default="openfinance", description="Schema name")
+    table_name: str = Field(..., description="目标表名")
+    schema_name: str = Field(default="openfinance", description="Schema 名称")
     
-    primary_key: list[str] = Field(default_factory=lambda: ["id"], description="Primary key columns")
-    unique_keys: list[list[str]] = Field(default_factory=list, description="Unique constraint columns")
+    primary_key: list[str] = Field(default_factory=lambda: ["id"], description="主键列")
+    unique_keys: list[list[str]] = Field(default_factory=list, description="唯一约束列")
     
-    fields: dict[str, dict[str, Any]] = Field(default_factory=dict, description="Field configurations")
+    fields: dict[str, dict[str, Any]] = Field(default_factory=dict, description="字段配置")
     
-    save_mode: SaveMode = Field(default=SaveMode.UPSERT, description="Save mode")
-    batch_size: int = Field(default=500, description="Batch size for inserts")
+    save_mode: SaveMode = Field(default=SaveMode.UPSERT, description="保存模式")
+    batch_size: int = Field(default=500, description="批量大小")
     
-    create_if_not_exists: bool = Field(default=True, description="Create table if not exists")
-    auto_ddl: bool = Field(default=False, description="Auto-generate DDL from field configs")
+    create_if_not_exists: bool = Field(default=True, description="如果表不存在则创建")
+    auto_ddl: bool = Field(default=False, description="自动生成 DDL")
     
-    pre_save_hook: str | None = Field(default=None, description="Pre-save hook function path")
-    post_save_hook: str | None = Field(default=None, description="Post-save hook function path")
+    pre_save_hook: str | None = Field(default=None, description="保存前钩子函数路径")
+    post_save_hook: str | None = Field(default=None, description="保存后钩子函数路径")
     
     def get_full_table_name(self) -> str:
-        """Get fully qualified table name."""
+        """获取完全限定的表名"""
         return f"{self.schema_name}.{self.table_name}"
     
     def get_field_config(self, field_name: str) -> FieldConfig:
-        """Get field configuration."""
+        """获取字段配置"""
         field_data = self.fields.get(field_name, {})
         return FieldConfig(
             name=field_name,
@@ -163,7 +167,7 @@ class TableConfig(BaseModel):
         )
     
     def get_upsert_conflict_clause(self) -> str:
-        """Generate ON CONFLICT clause for UPSERT."""
+        """生成 UPSERT 的 ON CONFLICT 子句"""
         if not self.unique_keys:
             conflict_cols = ", ".join(self.primary_key)
         else:
@@ -173,32 +177,32 @@ class TableConfig(BaseModel):
 
 
 class PersistenceConfig(BaseModel):
-    """Complete persistence configuration."""
+    """完整的持久化配置"""
     
     database_url: str = Field(
         default_factory=lambda: os.getenv(
             "DATABASE_URL",
             "postgresql+asyncpg://openfinance:openfinance@localhost:5432/openfinance?client_encoding=utf8"
         ),
-        description="Database connection URL"
+        description="数据库连接 URL"
     )
     
-    pool_size: int = Field(default=10, description="Connection pool size")
-    max_overflow: int = Field(default=20, description="Max overflow connections")
-    pool_recycle: int = Field(default=3600, description="Pool recycle time in seconds")
+    pool_size: int = Field(default=10, description="连接池大小")
+    max_overflow: int = Field(default=20, description="最大溢出连接数")
+    pool_recycle: int = Field(default=3600, description="连接池回收时间（秒）")
     
-    default_batch_size: int = Field(default=500, description="Default batch size")
-    max_retries: int = Field(default=3, description="Max retry attempts")
-    retry_delay: float = Field(default=1.0, description="Retry delay in seconds")
+    default_batch_size: int = Field(default=500, description="默认批量大小")
+    max_retries: int = Field(default=3, description="最大重试次数")
+    retry_delay: float = Field(default=1.0, description="重试延迟（秒）")
     
     tables: dict[str, TableConfig] = Field(
         default_factory=dict,
-        description="Table configurations"
+        description="表配置"
     )
     
     @classmethod
     def from_yaml(cls, path: str | Path) -> "PersistenceConfig":
-        """Load configuration from YAML file."""
+        """从 YAML 文件加载配置"""
         with open(path, "r", encoding="utf-8") as f:
             data = yaml.safe_load(f)
         
@@ -214,7 +218,7 @@ class PersistenceConfig(BaseModel):
 
 
 def with_retry(max_retries: int = 3, delay: float = 1.0):
-    """Decorator for retry logic with exponential backoff."""
+    """重试装饰器，使用指数退避"""
     def decorator(func):
         @wraps(func)
         async def wrapper(*args, **kwargs):
@@ -227,12 +231,12 @@ def with_retry(max_retries: int = 3, delay: float = 1.0):
                     if attempt < max_retries - 1:
                         wait_time = delay * (2 ** attempt)
                         logger.warning(
-                            f"Database operation failed (attempt {attempt + 1}/{max_retries}), "
-                            f"retrying in {wait_time}s: {e}"
+                            f"数据库操作失败（第 {attempt + 1}/{max_retries} 次尝试），"
+                            f"{wait_time}s 后重试: {e}"
                         )
                         await asyncio.sleep(wait_time)
                     else:
-                        logger.error(f"Database operation failed after {max_retries} attempts: {e}")
+                        logger.error(f"数据库操作在 {max_retries} 次尝试后失败: {e}")
             raise last_exception
         return wrapper
     return decorator
@@ -240,21 +244,22 @@ def with_retry(max_retries: int = 3, delay: float = 1.0):
 
 class ConfigurablePersistence:
     """
-    Configurable data persistence handler.
+    可配置的数据持久化处理器
     
-    Features:
-    - Table configuration via config objects
-    - Dynamic field mapping
-    - Multiple save modes (INSERT, UPSERT, APPEND)
-    - Batch processing
-    - Retry logic
-    - Pre/post save hooks
+    特性：
+    - 通过配置对象管理表配置
+    - 动态字段映射
+    - 多种保存模式（UPSERT/INSERT/APPEND）
+    - 批量处理
+    - 重试逻辑
+    - 保存前/后钩子
+    - ORM 模型支持
     
-    Usage:
+    使用示例：
         config = PersistenceConfig.from_yaml("persistence.yaml")
         persistence = ConfigurablePersistence(config)
         
-        # Save data
+        # 保存数据
         await persistence.save("stock_daily_quote", quotes)
     """
     
@@ -282,10 +287,12 @@ class ConfigurablePersistence:
             expire_on_commit=False,
         )
         
+        self.session_maker = self._session_maker
+        
         self._register_builtin_tables()
     
     def _register_builtin_tables(self) -> None:
-        """Register built-in table configurations."""
+        """注册内置表配置"""
         builtin_tables = {
             "stock_daily_quote": TableConfig(
                 table_name="stock_daily_quote",
@@ -318,6 +325,8 @@ class ConfigurablePersistence:
                     "industry": {"type": "string"},
                     "market": {"type": "string"},
                     "list_date": {"type": "date"},
+                    "total_shares": {"type": "float"},
+                    "circulating_shares": {"type": "float"},
                     "market_cap": {"type": "float"},
                     "pe_ratio": {"type": "float"},
                     "pb_ratio": {"type": "float"},
@@ -386,6 +395,143 @@ class ConfigurablePersistence:
                 },
                 save_mode=SaveMode.UPSERT,
             ),
+            "industry_quote": TableConfig(
+                table_name="industry_quote",
+                primary_key=["code", "trade_date"],
+                unique_keys=[["code", "trade_date"]],
+                fields={
+                    "code": {"type": "string", "required": True},
+                    "name": {"type": "string"},
+                    "trade_date": {"type": "date", "required": True},
+                    "open": {"type": "float"},
+                    "high": {"type": "float"},
+                    "low": {"type": "float"},
+                    "close": {"type": "float"},
+                    "volume": {"type": "float"},
+                    "amount": {"type": "float"},
+                    "change_pct": {"type": "float"},
+                },
+                save_mode=SaveMode.UPSERT,
+            ),
+            "concept_quote": TableConfig(
+                table_name="concept_quote",
+                primary_key=["code", "trade_date"],
+                unique_keys=[["code", "trade_date"]],
+                fields={
+                    "code": {"type": "string", "required": True},
+                    "name": {"type": "string"},
+                    "trade_date": {"type": "date", "required": True},
+                    "open": {"type": "float"},
+                    "high": {"type": "float"},
+                    "low": {"type": "float"},
+                    "close": {"type": "float"},
+                    "volume": {"type": "float"},
+                    "amount": {"type": "float"},
+                    "change_pct": {"type": "float"},
+                },
+                save_mode=SaveMode.UPSERT,
+            ),
+            "company_profile": TableConfig(
+                table_name="company_profile",
+                primary_key=["code"],
+                unique_keys=[["code"]],
+                fields={
+                    "code": {"type": "string", "required": True},
+                    "name": {"type": "string"},
+                    "industry": {"type": "string"},
+                    "sector": {"type": "string"},
+                    "description": {"type": "string"},
+                    "website": {"type": "string"},
+                    "employees": {"type": "integer"},
+                },
+                save_mode=SaveMode.UPSERT,
+            ),
+            "factor_data": TableConfig(
+                table_name="factor_data",
+                primary_key=["factor_id", "code", "trade_date"],
+                unique_keys=[["factor_id", "code", "trade_date"]],
+                batch_size=5000,
+                fields={
+                    "factor_id": {"type": "string", "required": True},
+                    "code": {"type": "string", "required": True},
+                    "trade_date": {"type": "date", "required": True},
+                    "factor_name": {"type": "string"},
+                    "factor_category": {"type": "string"},
+                    "factor_value": {"type": "float"},
+                    "collected_at": {"type": "datetime"},
+                },
+                save_mode=SaveMode.UPSERT,
+            ),
+            "income_statement": TableConfig(
+                table_name="income_statement",
+                primary_key=["code", "report_date", "report_period"],
+                unique_keys=[["code", "report_date", "report_period"]],
+                fields={
+                    "code": {"type": "string", "required": True},
+                    "report_date": {"type": "date", "required": True},
+                    "report_period": {"type": "string", "default": "annual"},
+                    "total_revenue": {"type": "float"},
+                    "operating_revenue": {"type": "float"},
+                    "total_cost_of_goods_sold": {"type": "float"},
+                    "gross_profit": {"type": "float"},
+                    "operating_profit": {"type": "float"},
+                    "total_profit": {"type": "float"},
+                    "net_profit": {"type": "float"},
+                    "net_profit_attr_parent": {"type": "float"},
+                    "basic_eps": {"type": "float"},
+                    "diluted_eps": {"type": "float"},
+                },
+                save_mode=SaveMode.UPSERT,
+            ),
+            "balance_sheet": TableConfig(
+                table_name="balance_sheet",
+                primary_key=["code", "report_date", "report_period"],
+                unique_keys=[["code", "report_date", "report_period"]],
+                fields={
+                    "code": {"type": "string", "required": True},
+                    "report_date": {"type": "date", "required": True},
+                    "report_period": {"type": "string", "default": "annual"},
+                    "total_assets": {"type": "float"},
+                    "total_liabilities": {"type": "float"},
+                    "total_equity": {"type": "float"},
+                    "net_equity_attr": {"type": "float"},
+                    "current_assets": {"type": "float"},
+                    "current_liabilities": {"type": "float"},
+                    "cash": {"type": "float"},
+                    "inventory": {"type": "float"},
+                },
+                save_mode=SaveMode.UPSERT,
+            ),
+            "dividend_data": TableConfig(
+                table_name="dividend_data",
+                primary_key=["code", "report_year"],
+                unique_keys=[["code", "report_year"]],
+                fields={
+                    "code": {"type": "string", "required": True},
+                    "report_year": {"type": "string", "required": True},
+                    "ex_date": {"type": "date"},
+                    "dividend_per_share": {"type": "float"},
+                    "bonus_per_share": {"type": "float"},
+                    "transfer_per_share": {"type": "float"},
+                    "total_dividend": {"type": "float"},
+                    "dividend_yield": {"type": "float"},
+                },
+                save_mode=SaveMode.UPSERT,
+            ),
+            "macro_economic": TableConfig(
+                table_name="macro_economic",
+                primary_key=["indicator_id", "report_date"],
+                unique_keys=[["indicator_id", "report_date"]],
+                fields={
+                    "indicator_id": {"type": "string", "required": True},
+                    "indicator_name": {"type": "string"},
+                    "report_date": {"type": "date", "required": True},
+                    "value": {"type": "float"},
+                    "unit": {"type": "string"},
+                    "source": {"type": "string"},
+                },
+                save_mode=SaveMode.UPSERT,
+            ),
         }
         
         for table_name, table_config in builtin_tables.items():
@@ -393,15 +539,15 @@ class ConfigurablePersistence:
                 self._config.tables[table_name] = table_config
     
     def register_table(self, config: TableConfig) -> None:
-        """Register a table configuration."""
+        """注册表配置"""
         self._config.tables[config.table_name] = config
     
     def get_table_config(self, table_name: str) -> TableConfig | None:
-        """Get table configuration."""
+        """获取表配置"""
         return self._config.tables.get(table_name)
     
     def _to_dict(self, obj: Any) -> dict[str, Any]:
-        """Convert object to dictionary."""
+        """将对象转换为字典"""
         if hasattr(obj, 'model_dump'):
             return obj.model_dump()
         elif hasattr(obj, 'dict'):
@@ -418,22 +564,22 @@ class ConfigurablePersistence:
         table_config: TableConfig | None = None,
     ) -> int:
         """
-        Save data to a configured table.
+        保存数据到配置的表
         
         Args:
-            table_name: Name of the target table
-            data: List of data objects to save
-            table_config: Optional table configuration (uses registered config if not provided)
+            table_name: 目标表名
+            data: 要保存的数据对象列表
+            table_config: 可选的表配置（使用已注册的配置）
         
         Returns:
-            Number of records saved
+            保存的记录数
         """
         if not data:
             return 0
         
         config = table_config or self._config.tables.get(table_name)
         if not config:
-            raise ValueError(f"No configuration found for table: {table_name}")
+            raise ValueError(f"未找到表的配置: {table_name}")
         
         saved = 0
         total = len(data)
@@ -445,14 +591,14 @@ class ConfigurablePersistence:
                     batch = data[i:i + batch_size]
                     batch_saved = await self._save_batch(session, config, batch)
                     saved += batch_saved
-                    logger.info(f"Saved batch {i // batch_size + 1}: {batch_saved}/{len(batch)} records")
+                    logger.info(f"保存批次 {i // batch_size + 1}: {batch_saved}/{len(batch)} 条记录")
                 
                 await session.commit()
-                logger.info(f"Successfully saved {saved}/{total} records to {config.get_full_table_name()}")
+                logger.info(f"成功保存 {saved}/{total} 条记录到 {config.get_full_table_name()}")
                 
             except Exception as e:
                 await session.rollback()
-                logger.error(f"Failed to save data to {table_name}: {e}")
+                logger.error(f"保存数据到 {table_name} 失败: {e}")
                 raise
         
         return saved
@@ -463,7 +609,7 @@ class ConfigurablePersistence:
         config: TableConfig,
         batch: list[Any],
     ) -> int:
-        """Save a batch of data."""
+        """保存一批数据"""
         saved = 0
         
         for item in batch:
@@ -481,14 +627,14 @@ class ConfigurablePersistence:
                 saved += 1
                 
             except IntegrityError as e:
-                logger.debug(f"Skipping duplicate: {e}")
+                logger.debug(f"跳过重复记录: {e}")
             except Exception as e:
-                logger.warning(f"Failed to save item: {e}")
+                logger.warning(f"保存记录失败: {e}")
         
         return saved
     
     def _process_data(self, config: TableConfig, data: dict[str, Any]) -> dict[str, Any]:
-        """Process data using field configurations."""
+        """使用字段配置处理数据"""
         processed = {}
         
         for field_name, field_data in config.fields.items():
@@ -504,7 +650,7 @@ class ConfigurablePersistence:
         config: TableConfig,
         data: dict[str, Any],
     ) -> None:
-        """Execute UPSERT (INSERT ... ON CONFLICT DO UPDATE)."""
+        """执行 UPSERT（INSERT ... ON CONFLICT DO UPDATE）"""
         columns = list(config.fields.keys())
         placeholders = ", ".join(f":{col}" for col in columns)
         column_list = ", ".join(columns)
@@ -532,7 +678,7 @@ class ConfigurablePersistence:
         config: TableConfig,
         data: dict[str, Any],
     ) -> None:
-        """Execute simple INSERT."""
+        """执行简单 INSERT"""
         columns = list(config.fields.keys())
         placeholders = ", ".join(f":{col}" for col in columns)
         column_list = ", ".join(columns)
@@ -544,8 +690,43 @@ class ConfigurablePersistence:
         
         await session.execute(text(sql), data)
     
+    async def save_orm(
+        self,
+        table_name: str,
+        data: list[Any],
+    ) -> int:
+        """
+        保存 ORM 模型数据
+        
+        Args:
+            table_name: 表名
+            data: ORM 模型对象列表
+        
+        Returns:
+            保存的记录数
+        """
+        if not data:
+            return 0
+        
+        saved = 0
+        async with self._session_maker() as session:
+            try:
+                for item in data:
+                    session.add(item)
+                    saved += 1
+                
+                await session.commit()
+                logger.info(f"成功保存 {saved}/{len(data)} 条 ORM 记录到 {table_name}")
+                
+            except Exception as e:
+                await session.rollback()
+                logger.error(f"保存 ORM 数据到 {table_name} 失败: {e}")
+                raise
+        
+        return saved
+    
     async def get_stats(self) -> dict[str, int]:
-        """Get database statistics."""
+        """获取数据库统计信息"""
         stats = {}
         async with self._session_maker() as session:
             for table_name, config in self._config.tables.items():
@@ -560,59 +741,3 @@ class ConfigurablePersistence:
 
 
 persistence = ConfigurablePersistence()
-
-
-class DataPersistence(ConfigurablePersistence):
-    """
-    Legacy DataPersistence class for backward compatibility.
-    
-    Provides the same interface as the original DataPersistence class.
-    """
-    
-    def __init__(self, batch_size: int = 500) -> None:
-        super().__init__()
-        self.batch_size = batch_size
-    
-    async def save_stock_quotes(self, quotes: list[Any]) -> int:
-        """Save stock daily quotes."""
-        return await self.save("stock_daily_quote", quotes)
-    
-    async def save_stock_basic(self, stocks: list[Any]) -> int:
-        """Save stock basic info."""
-        return await self.save("stock_basic", stocks)
-    
-    async def save_money_flow(self, flows: list[Any]) -> int:
-        """Save money flow data."""
-        return await self.save("stock_money_flow", flows)
-    
-    async def save_news(self, news_list: list[Any]) -> int:
-        """Save news data."""
-        return await self.save("news", news_list)
-    
-    async def save_macro_data(self, macro_list: list[Any]) -> int:
-        """Save macro economic data."""
-        return await self.save("macro_economic", macro_list)
-    
-    async def save_factor_data(self, factors: list[Any]) -> int:
-        """Save factor data."""
-        return await self.save("factor_data", factors)
-    
-    async def save_financial_indicator(self, indicators: list[Any]) -> int:
-        """Save financial indicators."""
-        return await self.save("stock_financial_indicator", indicators)
-    
-    async def save_north_money(self, data_list: list[Any]) -> int:
-        """Save north money data."""
-        return await self.save("north_money", data_list)
-    
-    async def save_industry_quotes(self, quotes: list[Any]) -> int:
-        """Save industry quotes."""
-        return await self.save("industry_quote", quotes)
-    
-    async def save_concept_quotes(self, quotes: list[Any]) -> int:
-        """Save concept quotes."""
-        return await self.save("concept_quote", quotes)
-    
-    async def save_company_profiles(self, profiles: list[Any]) -> int:
-        """Save company profiles."""
-        return await self.save("company_profile", profiles)

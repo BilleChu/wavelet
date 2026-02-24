@@ -8,8 +8,9 @@ Includes:
 - News collection (eastmoney)
 """
 
+import asyncio
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date as date_type
 from typing import Any
 
 from .registry import (
@@ -21,6 +22,7 @@ from .registry import (
     TaskProgress,
     task_executor,
 )
+from .trading_calendar import trading_calendar, get_latest_trading_day
 
 logger = logging.getLogger(__name__)
 
@@ -87,7 +89,7 @@ class StockBasicInfoExecutor(TaskExecutor[Any]):
 @task_executor(
     task_type="stock_daily_quote",
     name="股票日线行情采集",
-    description="从东方财富获取股票日线行情数据",
+    description="从东方财富获取股票日线行情数据（仅交易日）",
     category=TaskCategory.MARKET,
     source="eastmoney",
     priority=TaskPriority.HIGH,
@@ -103,7 +105,13 @@ class StockBasicInfoExecutor(TaskExecutor[Any]):
             name="days",
             type="integer",
             default=30,
-            description="获取最近N天的数据",
+            description="获取最近N个交易日的数据",
+        ),
+        TaskParameter(
+            name="force",
+            type="boolean",
+            default=False,
+            description="强制执行，即使今天不是交易日",
         ),
     ],
     output=TaskOutput(
@@ -115,48 +123,93 @@ class StockBasicInfoExecutor(TaskExecutor[Any]):
     tags=["market", "daily"],
 )
 class StockDailyQuoteExecutor(TaskExecutor[Any]):
-    """Executor for stock daily quotes from eastmoney."""
+    """Executor for stock daily quotes from eastmoney (trading days only)."""
     
     def __init__(self):
         from ..collector.implementations.market_collectors import KLineCollector
         self._collector_class = KLineCollector
     
     async def collect(self, params: dict[str, Any], progress: TaskProgress) -> list[Any]:
-        from ..collector.implementations.market_collectors import MarketRealtimeCollector
+        from ..collector.implementations.market_collectors import MarketRealtimeCollector, KLineCollector
+        from ..persistence import persistence
+        from sqlalchemy import text
         
         days = params.get("days", 30)
         codes = params.get("codes")
+        force = params.get("force", False)
         
-        start_date = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
-        end_date = datetime.now().strftime("%Y-%m-%d")
+        today = date_type.today()
         
-        progress.details["start_date"] = start_date
-        progress.details["end_date"] = end_date
+        if not trading_calendar.is_trading_day(today) and not force:
+            logger.info(f"Today ({today}) is not a trading day, skipping collection")
+            progress.details["skipped"] = True
+            progress.details["reason"] = "non_trading_day"
+            return []
+        
+        end_date = get_latest_trading_day(today)
+        
+        trading_days = trading_calendar.get_recent_trading_days(count=days, end_date=end_date)
+        if not trading_days:
+            logger.warning("No trading days found")
+            return []
+        
+        start_date = trading_days[0]
+        actual_end_date = trading_days[-1]
+        
+        progress.details["start_date"] = str(start_date)
+        progress.details["end_date"] = str(actual_end_date)
+        progress.details["trading_days_count"] = len(trading_days)
         progress.details["source"] = "eastmoney"
+        
+        logger.info(f"Collecting data for {len(trading_days)} trading days: {start_date} to {actual_end_date}")
         
         all_data = []
         
         if codes:
-            collector = self._collector_class()
+            collector = KLineCollector()
             await collector.start()
             try:
                 for code in codes:
                     result = await collector.collect(
                         symbols=[code],
-                        start_date=start_date,
-                        end_date=end_date,
+                        start_date=start_date.strftime("%Y-%m-%d"),
+                        end_date=actual_end_date.strftime("%Y-%m-%d"),
                     )
                     if result.data:
                         all_data.extend(result.data)
             finally:
                 await collector.stop()
         else:
-            collector = MarketRealtimeCollector()
+            codes = []
+            async with persistence.session_maker() as session:
+                result = await session.execute(text("""
+                    SELECT DISTINCT code FROM openfinance.stock_basic 
+                    WHERE code IS NOT NULL 
+                    ORDER BY code
+                """))
+                codes = [row[0] for row in result.fetchall()]
+            
+            progress.details["total_stocks"] = len(codes)
+            progress.total_records = len(codes)
+            
+            collector = KLineCollector()
             await collector.start()
             try:
-                result = await collector.collect(market="沪深A")
-                if result.data:
-                    all_data.extend(result.data)
+                batch_size = 50
+                for i in range(0, len(codes), batch_size):
+                    batch = codes[i:i + batch_size]
+                    try:
+                        result = await collector.collect(
+                            symbols=batch,
+                            start_date=start_date.strftime("%Y-%m-%d"),
+                            end_date=actual_end_date.strftime("%Y-%m-%d"),
+                        )
+                        if result.data:
+                            all_data.extend(result.data)
+                        progress.processed_records = min(i + batch_size, len(codes))
+                    except Exception as e:
+                        logger.warning(f"Failed to collect batch {i//batch_size + 1}: {e}")
+                    await asyncio.sleep(0.1)
             finally:
                 await collector.stop()
         
@@ -179,7 +232,7 @@ class StockDailyQuoteExecutor(TaskExecutor[Any]):
 @task_executor(
     task_type="index_daily_quote",
     name="指数日线行情采集",
-    description="从东方财富获取指数日线行情数据",
+    description="从东方财富获取指数日线行情数据（仅交易日）",
     category=TaskCategory.MARKET,
     source="eastmoney",
     priority=TaskPriority.HIGH,
@@ -195,7 +248,13 @@ class StockDailyQuoteExecutor(TaskExecutor[Any]):
             name="days",
             type="integer",
             default=30,
-            description="获取最近N天的数据",
+            description="获取最近N个交易日的数据",
+        ),
+        TaskParameter(
+            name="force",
+            type="boolean",
+            default=False,
+            description="强制执行，即使今天不是交易日",
         ),
     ],
     output=TaskOutput(
@@ -206,7 +265,7 @@ class StockDailyQuoteExecutor(TaskExecutor[Any]):
     tags=["market", "index"],
 )
 class IndexDailyQuoteExecutor(TaskExecutor[Any]):
-    """Executor for index daily quotes from eastmoney."""
+    """Executor for index daily quotes from eastmoney (trading days only)."""
     
     def __init__(self):
         from ..collector.implementations.market_collectors import KLineCollector
@@ -215,12 +274,30 @@ class IndexDailyQuoteExecutor(TaskExecutor[Any]):
     async def collect(self, params: dict[str, Any], progress: TaskProgress) -> list[Any]:
         codes = params.get("codes", ["000001", "399001", "399006", "000300", "000905"])
         days = params.get("days", 30)
+        force = params.get("force", False)
         
-        start_date = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
-        end_date = datetime.now().strftime("%Y-%m-%d")
+        today = date_type.today()
+        
+        if not trading_calendar.is_trading_day(today) and not force:
+            logger.info(f"Today ({today}) is not a trading day, skipping index collection")
+            progress.details["skipped"] = True
+            progress.details["reason"] = "non_trading_day"
+            return []
+        
+        end_date = get_latest_trading_day(today)
+        trading_days = trading_calendar.get_recent_trading_days(count=days, end_date=end_date)
+        
+        if not trading_days:
+            logger.warning("No trading days found")
+            return []
+        
+        start_date = trading_days[0]
+        actual_end_date = trading_days[-1]
         
         progress.details["codes"] = codes
-        progress.details["start_date"] = start_date
+        progress.details["start_date"] = str(start_date)
+        progress.details["end_date"] = str(actual_end_date)
+        progress.details["trading_days_count"] = len(trading_days)
         progress.details["source"] = "eastmoney"
         
         collector = self._collector_class()
@@ -228,8 +305,8 @@ class IndexDailyQuoteExecutor(TaskExecutor[Any]):
         try:
             result = await collector.collect(
                 symbols=codes,
-                start_date=start_date,
-                end_date=end_date,
+                start_date=start_date.strftime("%Y-%m-%d"),
+                end_date=actual_end_date.strftime("%Y-%m-%d"),
             )
             return result.data if result.data else []
         finally:
@@ -403,17 +480,17 @@ class FinancialNewsExecutor(TaskExecutor[Any]):
 @task_executor(
     task_type="factor_compute",
     name="因子计算",
-    description="使用量化引擎计算因子数据",
+    description="使用量化引擎计算因子数据（仅交易日）",
     category=TaskCategory.FUNDAMENTAL,
     source="internal",
     priority=TaskPriority.NORMAL,
-    timeout=1200.0,
+    timeout=3600.0,
     parameters=[
         TaskParameter(
-            name="factor_id",
-            type="string",
-            default="momentum_20d",
-            description="因子ID",
+            name="factor_ids",
+            type="array",
+            default=None,
+            description="因子ID列表，为空则计算所有内置因子",
         ),
         TaskParameter(
             name="codes",
@@ -425,7 +502,19 @@ class FinancialNewsExecutor(TaskExecutor[Any]):
             name="trade_date",
             type="string",
             default=None,
-            description="交易日期，为空则使用最新日期",
+            description="交易日期，为空则使用最新交易日",
+        ),
+        TaskParameter(
+            name="batch_size",
+            type="integer",
+            default=50,
+            description="每批处理的股票数量",
+        ),
+        TaskParameter(
+            name="force",
+            type="boolean",
+            default=False,
+            description="强制执行，即使今天不是交易日",
         ),
     ],
     output=TaskOutput(
@@ -437,7 +526,24 @@ class FinancialNewsExecutor(TaskExecutor[Any]):
     tags=["factor", "quant"],
 )
 class FactorComputeExecutor(TaskExecutor[Any]):
-    """Executor for factor computation using quant module."""
+    """Executor for factor computation using quant module (trading days only)."""
+    
+    BUILTIN_FACTORS = [
+        "factor_momentum",
+        "factor_risk_adj_momentum", 
+        "factor_volatility",
+        "factor_idio_volatility",
+        "factor_sma",
+        "factor_ema",
+        "factor_macd",
+        "factor_rsi",
+        "factor_kdj",
+        "factor_boll",
+        "factor_atr",
+        "factor_cci",
+        "factor_wr",
+        "factor_obv",
+    ]
     
     def __init__(self):
         self._engine = None
@@ -451,22 +557,31 @@ class FactorComputeExecutor(TaskExecutor[Any]):
         return self._engine
     
     async def collect(self, params: dict[str, Any], progress: TaskProgress) -> list[Any]:
-        from datetime import date as date_type
-        
-        factor_id = params.get("factor_id", "momentum_20d")
+        factor_ids = params.get("factor_ids")
         codes = params.get("codes")
         trade_date_str = params.get("trade_date")
+        batch_size = params.get("batch_size", 50)
+        force = params.get("force", False)
+        
+        today = date_type.today()
         
         if trade_date_str:
             trade_date = date_type.fromisoformat(trade_date_str)
         else:
-            trade_date = date_type.today()
+            trade_date = get_latest_trading_day(today)
         
-        progress.details["factor_id"] = factor_id
+        if not trading_calendar.is_trading_day(today) and not force:
+            logger.info(f"Today ({today}) is not a trading day, skipping factor computation")
+            progress.details["skipped"] = True
+            progress.details["reason"] = "non_trading_day"
+            return []
+        
+        if not factor_ids:
+            factor_ids = self.BUILTIN_FACTORS
+        
+        progress.details["factor_ids"] = factor_ids
         progress.details["trade_date"] = str(trade_date)
         progress.details["source"] = "quant_engine"
-        
-        engine = await self._get_engine()
         
         if not codes:
             from ..persistence import persistence
@@ -474,24 +589,60 @@ class FactorComputeExecutor(TaskExecutor[Any]):
                 from sqlalchemy import text
                 result = await session.execute(text("""
                     SELECT DISTINCT code FROM openfinance.stock_daily_quote 
-                    WHERE trade_date >= CURRENT_DATE - INTERVAL '7 days'
-                    LIMIT 100
-                """))
+                    WHERE trade_date = :trade_date
+                    AND code NOT LIKE 'IND_%'
+                    AND code NOT LIKE 'CON_%'
+                    AND code NOT LIKE 'BK%'
+                    AND LENGTH(code) = 6
+                    ORDER BY code
+                """), {"trade_date": trade_date})
                 codes = [row[0] for row in result.fetchall()]
+                
+                if not codes:
+                    logger.warning(f"No stocks found for trade_date {trade_date}, falling back to recent data")
+                    result = await session.execute(text("""
+                        SELECT DISTINCT code FROM openfinance.stock_daily_quote 
+                        WHERE trade_date >= CURRENT_DATE - INTERVAL '30 days'
+                        AND code NOT LIKE 'IND_%'
+                        AND code NOT LIKE 'CON_%'
+                        AND code NOT LIKE 'BK%'
+                        AND LENGTH(code) = 6
+                        ORDER BY code
+                    """))
+                    codes = [row[0] for row in result.fetchall()]
         
-        progress.total_records = len(codes)
+        progress.total_records = len(codes) * len(factor_ids)
+        progress.details["total_stocks"] = len(codes)
+        progress.details["total_factors"] = len(factor_ids)
         
-        results = []
-        for i, code in enumerate(codes):
-            try:
-                result = await engine.calculate(factor_id, code, trade_date)
-                if result:
-                    results.append(result)
-                progress.processed_records = i + 1
-            except Exception as e:
-                logger.warning(f"Failed to calculate factor for {code}: {e}")
+        logger.info(f"Computing factors for {len(codes)} stocks on {trade_date}")
         
-        return results
+        engine = await self._get_engine()
+        
+        all_results = []
+        processed = 0
+        
+        for factor_id in factor_ids:
+            factor_results = []
+            for i in range(0, len(codes), batch_size):
+                batch = codes[i:i + batch_size]
+                for code in batch:
+                    try:
+                        result = await engine.calculate(factor_id, code, trade_date)
+                        if result:
+                            factor_results.append(result)
+                        processed += 1
+                        progress.processed_records = processed
+                    except Exception as e:
+                        logger.warning(f"Failed to calculate {factor_id} for {code}: {e}")
+                        processed += 1
+                
+                await asyncio.sleep(0.05)
+            
+            all_results.extend(factor_results)
+            logger.info(f"Calculated {factor_id}: {len(factor_results)} results")
+        
+        return all_results
     
     async def validate(self, data: list[Any]) -> list[Any]:
         validated = []
@@ -918,9 +1069,600 @@ def register_additional_executors():
         SyncStockEntitiesExecutor(),
         SyncIndustryEntitiesExecutor(),
         SyncConceptEntitiesExecutor(),
+        IncomeStatementExecutor(),
+        BalanceSheetExecutor(),
+        DividendDataExecutor(),
+        FundamentalFactorComputeExecutor(),
     ]
     
     for executor in executors:
         TaskRegistry.register(executor)
     
     logger.info(f"Registered {len(executors)} additional task executors")
+
+
+@task_executor(
+    task_type="income_statement",
+    name="利润表数据采集",
+    description="从东方财富采集利润表数据（营业收入、净利润、归母净利润等）",
+    category=TaskCategory.FUNDAMENTAL,
+    source="eastmoney",
+    priority=TaskPriority.HIGH,
+    timeout=1800.0,
+    parameters=[
+        TaskParameter(
+            name="codes",
+            type="array",
+            default=None,
+            description="股票代码列表，为空则采集全部股票",
+        ),
+        TaskParameter(
+            name="batch_size",
+            type="integer",
+            default=50,
+            description="每批处理的股票数量",
+        ),
+    ],
+    output=TaskOutput(
+        data_type="income_statement",
+        table_name="income_statement",
+        description="利润表数据",
+        fields=["code", "report_date", "revenue", "net_profit", "net_profit_attr"],
+    ),
+    tags=["fundamental", "financial", "income"],
+)
+class IncomeStatementExecutor(TaskExecutor[Any]):
+    """Executor for income statement data collection."""
+    
+    def __init__(self):
+        from ..collector.implementations.fundamental_collectors import IncomeStatementCollector
+        self._collector_class = IncomeStatementCollector
+    
+    async def collect(self, params: dict[str, Any], progress: TaskProgress) -> list[Any]:
+        codes = params.get("codes")
+        batch_size = params.get("batch_size", 50)
+        
+        if not codes:
+            from ..persistence import persistence
+            async with persistence.session_maker() as session:
+                from sqlalchemy import text
+                result = await session.execute(text("""
+                    SELECT DISTINCT code FROM openfinance.stock_basic
+                    WHERE LENGTH(code) = 6
+                    ORDER BY code
+                """))
+                codes = [row[0] for row in result.fetchall()]
+        
+        progress.total_records = len(codes)
+        progress.details["source"] = "eastmoney"
+        
+        collector = self._collector_class()
+        await collector.start()
+        
+        all_data = []
+        try:
+            for i in range(0, len(codes), batch_size):
+                batch = codes[i:i + batch_size]
+                for code in batch:
+                    try:
+                        records = await collector._collect(code=code)
+                        all_data.extend(records)
+                    except Exception as e:
+                        logger.debug(f"Failed to collect income statement for {code}: {e}")
+                    progress.processed_records = min(i + batch_size, len(codes))
+                await asyncio.sleep(0.1)
+        finally:
+            await collector.stop()
+        
+        return all_data
+    
+    async def validate(self, data: list[Any]) -> list[Any]:
+        return [d for d in data if d.get("code") and d.get("report_date")]
+    
+    async def save(self, data: list[Any], progress: TaskProgress) -> int:
+        from ..persistence import persistence
+        
+        return await persistence.save_orm("income_statement", data)
+
+
+@task_executor(
+    task_type="balance_sheet",
+    name="资产负债表数据采集",
+    description="从东方财富采集资产负债表数据（总资产、总负债、净资产等）",
+    category=TaskCategory.FUNDAMENTAL,
+    source="eastmoney",
+    priority=TaskPriority.HIGH,
+    timeout=1800.0,
+    parameters=[
+        TaskParameter(
+            name="codes",
+            type="array",
+            default=None,
+            description="股票代码列表，为空则采集全部股票",
+        ),
+        TaskParameter(
+            name="batch_size",
+            type="integer",
+            default=50,
+            description="每批处理的股票数量",
+        ),
+    ],
+    output=TaskOutput(
+        data_type="balance_sheet",
+        table_name="balance_sheet",
+        description="资产负债表数据",
+        fields=["code", "report_date", "total_assets", "total_equity", "net_equity_attr"],
+    ),
+    tags=["fundamental", "financial", "balance"],
+)
+class BalanceSheetExecutor(TaskExecutor[Any]):
+    """Executor for balance sheet data collection."""
+    
+    def __init__(self):
+        from ..collector.implementations.fundamental_collectors import BalanceSheetCollector
+        self._collector_class = BalanceSheetCollector
+    
+    async def collect(self, params: dict[str, Any], progress: TaskProgress) -> list[Any]:
+        codes = params.get("codes")
+        batch_size = params.get("batch_size", 50)
+        
+        if not codes:
+            from ..persistence import persistence
+            async with persistence.session_maker() as session:
+                from sqlalchemy import text
+                result = await session.execute(text("""
+                    SELECT DISTINCT code FROM openfinance.stock_basic
+                    WHERE LENGTH(code) = 6
+                    ORDER BY code
+                """))
+                codes = [row[0] for row in result.fetchall()]
+        
+        progress.total_records = len(codes)
+        progress.details["source"] = "eastmoney"
+        
+        collector = self._collector_class()
+        await collector.start()
+        
+        all_data = []
+        try:
+            for i in range(0, len(codes), batch_size):
+                batch = codes[i:i + batch_size]
+                for code in batch:
+                    try:
+                        records = await collector._collect(code=code)
+                        all_data.extend(records)
+                    except Exception as e:
+                        logger.debug(f"Failed to collect balance sheet for {code}: {e}")
+                    progress.processed_records = min(i + batch_size, len(codes))
+                await asyncio.sleep(0.1)
+        finally:
+            await collector.stop()
+        
+        return all_data
+    
+    async def validate(self, data: list[Any]) -> list[Any]:
+        return [d for d in data if d.get("code") and d.get("report_date")]
+    
+    async def save(self, data: list[Any], progress: TaskProgress) -> int:
+        from ..persistence import persistence
+        
+        return await persistence.save_orm("balance_sheet", data)
+
+
+@task_executor(
+    task_type="dividend_data",
+    name="股息分红数据采集",
+    description="从东方财富采集历史分红数据（每股股息、分红方案等）",
+    category=TaskCategory.FUNDAMENTAL,
+    source="eastmoney",
+    priority=TaskPriority.NORMAL,
+    timeout=1800.0,
+    parameters=[
+        TaskParameter(
+            name="codes",
+            type="array",
+            default=None,
+            description="股票代码列表，为空则采集全部股票",
+        ),
+        TaskParameter(
+            name="batch_size",
+            type="integer",
+            default=50,
+            description="每批处理的股票数量",
+        ),
+    ],
+    output=TaskOutput(
+        data_type="dividend_data",
+        table_name="dividend_data",
+        description="股息分红数据",
+        fields=["code", "report_year", "dividend_per_share", "dividend_yield"],
+    ),
+    tags=["fundamental", "dividend"],
+)
+class DividendDataExecutor(TaskExecutor[Any]):
+    """Executor for dividend data collection."""
+    
+    def __init__(self):
+        from ..collector.implementations.fundamental_collectors import DividendDataCollector
+        self._collector_class = DividendDataCollector
+    
+    async def collect(self, params: dict[str, Any], progress: TaskProgress) -> list[Any]:
+        codes = params.get("codes")
+        batch_size = params.get("batch_size", 50)
+        
+        if not codes:
+            from ..persistence import persistence
+            async with persistence.session_maker() as session:
+                from sqlalchemy import text
+                result = await session.execute(text("""
+                    SELECT DISTINCT code FROM openfinance.stock_basic
+                    WHERE LENGTH(code) = 6
+                    ORDER BY code
+                """))
+                codes = [row[0] for row in result.fetchall()]
+        
+        progress.total_records = len(codes)
+        progress.details["source"] = "eastmoney"
+        
+        collector = self._collector_class()
+        await collector.start()
+        
+        all_data = []
+        try:
+            for i in range(0, len(codes), batch_size):
+                batch = codes[i:i + batch_size]
+                for code in batch:
+                    try:
+                        records = await collector._collect(code=code)
+                        all_data.extend(records)
+                    except Exception as e:
+                        logger.debug(f"Failed to collect dividend data for {code}: {e}")
+                    progress.processed_records = min(i + batch_size, len(codes))
+                await asyncio.sleep(0.1)
+        finally:
+            await collector.stop()
+        
+        return all_data
+    
+    async def validate(self, data: list[Any]) -> list[Any]:
+        return [d for d in data if d.get("code") and d.get("report_year")]
+    
+    async def save(self, data: list[Any], progress: TaskProgress) -> int:
+        from ..persistence import persistence
+        
+        return await persistence.save_orm("dividend_data", data)
+
+
+@task_executor(
+    task_type="fundamental_factor_compute",
+    name="基本面因子计算",
+    description="计算 PE、ROE、股息率、筹码分布等基本面因子",
+    category=TaskCategory.FUNDAMENTAL,
+    source="internal",
+    priority=TaskPriority.NORMAL,
+    timeout=3600.0,
+    parameters=[
+        TaskParameter(
+            name="factor_ids",
+            type="array",
+            default=None,
+            description="因子ID列表，为空则计算所有基本面因子",
+        ),
+        TaskParameter(
+            name="codes",
+            type="array",
+            default=None,
+            description="股票代码列表，为空则计算全部",
+        ),
+        TaskParameter(
+            name="trade_date",
+            type="string",
+            default=None,
+            description="交易日期，为空则使用最新交易日",
+        ),
+    ],
+    output=TaskOutput(
+        data_type="factor_data",
+        table_name="factor_data",
+        description="基本面因子数据",
+        fields=["factor_id", "code", "trade_date", "factor_value"],
+    ),
+    tags=["factor", "fundamental"],
+)
+class FundamentalFactorComputeExecutor(TaskExecutor[Any]):
+    """Executor for computing fundamental factors (PE, ROE, Dividend Yield, Chip Distribution)."""
+    
+    FUNDAMENTAL_FACTORS = [
+        "factor_value_pe",
+        "factor_quality_roe",
+        "factor_dividend_yield",
+        "factor_chip_distribution_2y",
+    ]
+    
+    def __init__(self):
+        pass
+    
+    async def collect(self, params: dict[str, Any], progress: TaskProgress) -> list[Any]:
+        factor_ids = params.get("factor_ids") or self.FUNDAMENTAL_FACTORS
+        codes = params.get("codes")
+        trade_date_str = params.get("trade_date")
+        
+        if trade_date_str:
+            trade_date = date_type.fromisoformat(trade_date_str)
+        else:
+            trade_date = get_latest_trading_day(date_type.today())
+        
+        progress.details["factor_ids"] = factor_ids
+        progress.details["trade_date"] = str(trade_date)
+        
+        import asyncpg
+        conn = await asyncpg.connect(
+            "postgresql://openfinance:openfinance@localhost:5432/openfinance"
+        )
+        
+        if not codes:
+            rows = await conn.fetch('''
+                SELECT DISTINCT code FROM openfinance.stock_daily_quote
+                WHERE trade_date = $1
+                AND LENGTH(code) = 6
+                ORDER BY code
+            ''', trade_date)
+            codes = [row["code"] for row in rows]
+        
+        progress.total_records = len(codes) * len(factor_ids)
+        
+        all_results = []
+        
+        for factor_id in factor_ids:
+            if factor_id == "factor_value_pe":
+                results = await self._compute_pe_factor(conn, codes, trade_date)
+            elif factor_id == "factor_quality_roe":
+                results = await self._compute_roe_factor(conn, codes, trade_date)
+            elif factor_id == "factor_dividend_yield":
+                results = await self._compute_dividend_yield_factor(conn, codes, trade_date)
+            elif factor_id == "factor_chip_distribution_2y":
+                results = await self._compute_chip_distribution_factor(conn, codes, trade_date)
+            else:
+                results = []
+            
+            all_results.extend(results)
+            logger.info(f"Computed {factor_id}: {len(results)} results")
+        
+        await conn.close()
+        return all_results
+    
+    async def _compute_pe_factor(self, conn, codes: list[str], trade_date: date_type) -> list[dict]:
+        """计算 PE 因子: PE = 市值 / 归母净利润"""
+        results = []
+        
+        for code in codes:
+            try:
+                quote = await conn.fetchrow('''
+                    SELECT close, market_cap FROM openfinance.stock_daily_quote
+                    WHERE code = $1 AND trade_date = $2
+                ''', code, trade_date)
+                
+                if not quote or not quote["close"]:
+                    continue
+                
+                income = await conn.fetchrow('''
+                    SELECT net_profit_attr FROM openfinance.income_statement
+                    WHERE code = $1
+                    ORDER BY report_date DESC LIMIT 1
+                ''', code)
+                
+                if not income or not income["net_profit_attr"]:
+                    continue
+                
+                net_profit_attr = float(income["net_profit_attr"])
+                if net_profit_attr <= 0:
+                    continue
+                
+                close = float(quote["close"])
+                
+                total_shares_row = await conn.fetchrow('''
+                    SELECT total_shares FROM openfinance.stock_basic WHERE code = $1
+                ''', code)
+                
+                if total_shares_row and total_shares_row["total_shares"]:
+                    total_shares = float(total_shares_row["total_shares"])
+                    market_cap = close * total_shares
+                else:
+                    continue
+                
+                pe = market_cap / net_profit_attr
+                pe_factor = 1.0 / pe if pe > 0 else None
+                
+                if pe_factor is not None:
+                    results.append({
+                        "factor_id": "factor_value_pe",
+                        "code": code,
+                        "trade_date": trade_date,
+                        "factor_value": pe_factor,
+                    })
+            except Exception as e:
+                logger.debug(f"Failed to compute PE for {code}: {e}")
+        
+        return results
+    
+    async def _compute_roe_factor(self, conn, codes: list[str], trade_date: date_type) -> list[dict]:
+        """计算 ROE 因子: ROE = 归母净利润 / 归母净资产"""
+        results = []
+        
+        for code in codes:
+            try:
+                income = await conn.fetchrow('''
+                    SELECT net_profit_attr FROM openfinance.income_statement
+                    WHERE code = $1
+                    ORDER BY report_date DESC LIMIT 1
+                ''', code)
+                
+                balance = await conn.fetchrow('''
+                    SELECT net_equity_attr FROM openfinance.balance_sheet
+                    WHERE code = $1
+                    ORDER BY report_date DESC LIMIT 1
+                ''', code)
+                
+                if not income or not balance:
+                    continue
+                
+                net_profit_attr = float(income["net_profit_attr"]) if income["net_profit_attr"] else None
+                net_equity_attr = float(balance["net_equity_attr"]) if balance["net_equity_attr"] else None
+                
+                if net_profit_attr is None or net_equity_attr is None or net_equity_attr <= 0:
+                    continue
+                
+                roe = net_profit_attr / net_equity_attr
+                
+                results.append({
+                    "factor_id": "factor_quality_roe",
+                    "code": code,
+                    "trade_date": trade_date,
+                    "factor_value": roe,
+                })
+            except Exception as e:
+                logger.debug(f"Failed to compute ROE for {code}: {e}")
+        
+        return results
+    
+    async def _compute_dividend_yield_factor(self, conn, codes: list[str], trade_date: date_type) -> list[dict]:
+        """计算股息率因子: 股息率 = 每股股息 / 收盘价"""
+        results = []
+        
+        for code in codes:
+            try:
+                quote = await conn.fetchrow('''
+                    SELECT close FROM openfinance.stock_daily_quote
+                    WHERE code = $1 AND trade_date = $2
+                ''', code, trade_date)
+                
+                if not quote or not quote["close"]:
+                    continue
+                
+                dividend = await conn.fetchrow('''
+                    SELECT dividend_per_share FROM openfinance.dividend_data
+                    WHERE code = $1
+                    ORDER BY report_year DESC LIMIT 1
+                ''', code)
+                
+                if not dividend or not dividend["dividend_per_share"]:
+                    continue
+                
+                close = float(quote["close"])
+                dps = float(dividend["dividend_per_share"])
+                
+                dividend_yield = dps / close if close > 0 else None
+                
+                if dividend_yield is not None:
+                    results.append({
+                        "factor_id": "factor_dividend_yield",
+                        "code": code,
+                        "trade_date": trade_date,
+                        "factor_value": dividend_yield,
+                    })
+            except Exception as e:
+                logger.debug(f"Failed to compute dividend yield for {code}: {e}")
+        
+        return results
+    
+    async def _compute_chip_distribution_factor(self, conn, codes: list[str], trade_date: date_type) -> list[dict]:
+        """计算筹码分布因子: 基于历史K线计算筹码集中度"""
+        import math
+        
+        results = []
+        
+        for code in codes:
+            try:
+                klines = await conn.fetch('''
+                    SELECT trade_date, high, low, close, volume
+                    FROM openfinance.stock_daily_quote
+                    WHERE code = $1 AND trade_date <= $2
+                    ORDER BY trade_date DESC
+                    LIMIT 480
+                ''', code, trade_date)
+                
+                if len(klines) < 60:
+                    continue
+                
+                klines = list(reversed(klines))
+                
+                price_min = min(float(k["low"]) for k in klines if k["low"])
+                price_max = max(float(k["high"]) for k in klines if k["high"])
+                
+                if price_max <= price_min:
+                    continue
+                
+                num_bins = 20
+                bin_size = (price_max - price_min) / num_bins
+                volume_distribution = [0.0] * num_bins
+                
+                total_volume = 0
+                for k in klines:
+                    close = float(k["close"]) if k["close"] else None
+                    volume = int(k["volume"]) if k["volume"] else 0
+                    
+                    if close is None or volume == 0:
+                        continue
+                    
+                    bin_idx = min(int((close - price_min) / bin_size), num_bins - 1)
+                    volume_distribution[bin_idx] += volume
+                    total_volume += volume
+                
+                if total_volume == 0:
+                    continue
+                
+                sorted_volumes = sorted(volume_distribution, reverse=True)
+                cumulative = 0
+                bins_for_50_percent = 0
+                for v in sorted_volumes:
+                    cumulative += v
+                    bins_for_50_percent += 1
+                    if cumulative >= total_volume * 0.5:
+                        break
+                
+                chip_concentration = 1.0 - (bins_for_50_percent / num_bins)
+                
+                results.append({
+                    "factor_id": "factor_chip_distribution_2y",
+                    "code": code,
+                    "trade_date": trade_date,
+                    "factor_value": chip_concentration,
+                })
+            except Exception as e:
+                logger.debug(f"Failed to compute chip distribution for {code}: {e}")
+        
+        return results
+    
+    async def validate(self, data: list[Any]) -> list[Any]:
+        return [d for d in data if d.get("code") and d.get("factor_value") is not None]
+    
+    async def save(self, data: list[Any], progress: TaskProgress) -> int:
+        import asyncpg
+        
+        conn = await asyncpg.connect(
+            "postgresql://openfinance:openfinance@localhost:5432/openfinance"
+        )
+        
+        saved = 0
+        for record in data:
+            try:
+                await conn.execute('''
+                    INSERT INTO openfinance.factor_data (
+                        factor_id, code, trade_date, factor_name, factor_category,
+                        factor_value, collected_at
+                    ) VALUES ($1, $2, $3, $1, 'fundamental', $4, CURRENT_TIMESTAMP)
+                    ON CONFLICT (factor_id, code, trade_date) DO UPDATE SET
+                        factor_value = EXCLUDED.factor_value,
+                        collected_at = CURRENT_TIMESTAMP
+                ''',
+                    record.get("factor_id"),
+                    record.get("code"),
+                    record.get("trade_date"),
+                    record.get("factor_value"),
+                )
+                saved += 1
+            except Exception as e:
+                logger.debug(f"Failed to save factor data: {e}")
+        
+        await conn.close()
+        return saved

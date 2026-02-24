@@ -109,6 +109,308 @@ class InstitutionalRatingCollector(FundamentalDataCollector):
                 return f"0.{code}"
         return f"0.{code}"
 
+
+class IncomeStatementCollector(FundamentalDataCollector):
+    """
+    Collector for income statement data (利润表).
+    采集利润表数据，包括营业收入、净利润、归母净利润等。
+    Returns ADSIncomeStatementModel instances.
+    """
+
+    def __init__(self, config: CollectionConfig | None = None) -> None:
+        if config is None:
+            config = CollectionConfig(
+                source=DataSource.EASTMONEY,
+                data_type=DataType.STOCK_FINANCIAL_INDICATOR,
+                category=DataCategory.FUNDAMENTAL,
+                frequency=DataFrequency.QUARTERLY,
+            )
+        super().__init__(config)
+
+    @property
+    def source(self) -> DataSource:
+        return DataSource.EASTMONEY
+
+    async def _initialize(self) -> None:
+        logger.info(f"Initialized {self.__class__.__name__}")
+
+    async def _cleanup(self) -> None:
+        logger.info(f"Cleaned up {self.__class__.__name__}")
+
+    async def _collect(self, **kwargs: Any) -> list[Any]:
+        from openfinance.datacenter.models.analytical.financial import ADSIncomeStatementModel
+        
+        code = kwargs.get("code")
+        if not code:
+            raise ValueError("code parameter is required")
+        return await self._collect_income_statement(code)
+
+    async def _collect_income_statement(self, code: str) -> list[Any]:
+        from datetime import datetime
+        from openfinance.datacenter.models.analytical.financial import ADSIncomeStatementModel
+        import aiohttp
+
+        code_id = self._get_code_id(code)
+        
+        url = "https://emweb.eastmoney.com/PC_HSF10/NewFinanceAnalysis/ZYZBAjaxNew"
+        params = {
+            "companyType": "4",
+            "reportDateType": "0",
+            "code": code_id,
+            "dataType": "1",
+        }
+
+        records = []
+        async with aiohttp.ClientSession() as session:
+            try:
+                async with session.get(url, params=params) as response:
+                    data = await response.json()
+                
+                if data.get("data") and data["data"].get("lr"):
+                    for item in data["data"]["lr"]:
+                        report_date_str = item.get("date")
+                        report_date = None
+                        if report_date_str:
+                            try:
+                                report_date = datetime.strptime(report_date_str, "%Y-%m-%d").date()
+                            except ValueError:
+                                pass
+                        
+                        records.append(ADSIncomeStatementModel(
+                            code=code,
+                            report_date=report_date,
+                            report_period=item.get("type", "annual"),
+                            total_revenue=self._safe_float(item.get("yysr")),
+                            operating_revenue=self._safe_float(item.get("yysr")),
+                            total_operating_cost=self._safe_float(item.get("yycb")),
+                            cost_of_goods_sold=self._safe_float(item.get("yycb")),
+                            operating_profit=self._safe_float(item.get("yylr")),
+                            total_profit=self._safe_float(item.get("ze")),
+                            net_profit=self._safe_float(item.get("jlr")),
+                            net_profit_attr_parent=self._safe_float(item.get("gsjlr")),
+                            basic_eps=self._safe_float(item.get("mgde")),
+                            diluted_eps=self._safe_float(item.get("xsmgde")),
+                        ))
+            except Exception as e:
+                logger.warning(f"Failed to collect income statement for {code}: {e}")
+
+        return records
+
+    def _get_record_hash(self, record: Any) -> str:
+        return f"{record.code}_{record.report_date}_{getattr(record, 'report_period', 'annual')}"
+
+    async def _is_valid(self, record: Any) -> bool:
+        return record.code is not None and record.report_date is not None
+
+    def _get_code_id(self, code: str) -> str:
+        if code.isdigit():
+            if code.startswith("6"):
+                return f"1.{code}"
+            else:
+                return f"0.{code}"
+        return f"0.{code}"
+
+    def _safe_float(self, value: Any) -> float | None:
+        if value is None or value == "-" or value == "":
+            return None
+        try:
+            return float(value)
+        except (ValueError, TypeError):
+            return None
+
+
+class BalanceSheetCollector(FundamentalDataCollector):
+    """
+    Collector for balance sheet data (资产负债表).
+    采集资产负债表数据，包括总资产、总负债、净资产等。
+    Returns ADSBalanceSheetModel instances.
+    """
+
+    def __init__(self, config: CollectionConfig | None = None) -> None:
+        if config is None:
+            config = CollectionConfig(
+                source=DataSource.EASTMONEY,
+                data_type=DataType.STOCK_FINANCIAL_INDICATOR,
+                category=DataCategory.FUNDAMENTAL,
+                frequency=DataFrequency.QUARTERLY,
+            )
+        super().__init__(config)
+
+    @property
+    def source(self) -> DataSource:
+        return DataSource.EASTMONEY
+
+    async def _initialize(self) -> None:
+        logger.info(f"Initialized {self.__class__.__name__}")
+
+    async def _cleanup(self) -> None:
+        logger.info(f"Cleaned up {self.__class__.__name__}")
+
+    async def _collect(self, **kwargs: Any) -> list[Any]:
+        from openfinance.datacenter.models.analytical.financial import ADSBalanceSheetModel
+        
+        code = kwargs.get("code")
+        if not code:
+            raise ValueError("code parameter is required")
+        return await self._collect_balance_sheet(code)
+
+    async def _collect_balance_sheet(self, code: str) -> list[Any]:
+        import aiohttp
+
+        code_id = self._get_code_id(code)
+        
+        url = "https://emweb.eastmoney.com/PC_HSF10/NewFinanceAnalysis/ZYZBAjaxNew"
+        params = {
+            "companyType": "4",
+            "reportDateType": "0",
+            "code": code_id,
+            "dataType": "3",
+        }
+
+        records = []
+        async with aiohttp.ClientSession() as session:
+            try:
+                async with session.get(url, params=params) as response:
+                    data = await response.json()
+                
+                if data.get("data") and data["data"].get("zc"):
+                    for item in data["data"]["zc"]:
+                        report_date_str = item.get("date")
+                        report_date = None
+                        if report_date_str:
+                            try:
+                                report_date = datetime.strptime(report_date_str, "%Y-%m-%d").date()
+                            except ValueError:
+                                pass
+                        
+                        records.append(ADSBalanceSheetModel(
+                            code=code,
+                            report_date=report_date,
+                            report_period=item.get("type", "annual"),
+                            total_assets=self._safe_float(item.get("zzc")),
+                            total_liabilities=self._safe_float(item.get("zfz")),
+                            total_equity=self._safe_float(item.get("gdqy")),
+                            net_equity_attr=self._safe_float(item.get("sgdqy")),
+                            current_assets=self._safe_float(item.get("ldzc")),
+                            current_liabilities=self._safe_float(item.get("ldfz")),
+                            cash=self._safe_float(item.get("hbzj")),
+                            inventory=self._safe_float(item.get("ch")),
+                        ))
+            except Exception as e:
+                logger.warning(f"Failed to collect balance sheet for {code}: {e}")
+
+        return records
+
+    def _get_record_hash(self, record: Any) -> str:
+        return f"{record.code}_{record.report_date}_{getattr(record, 'report_period', 'annual')}"
+
+    async def _is_valid(self, record: Any) -> bool:
+        return record.code is not None and record.report_date is not None
+
+    def _get_code_id(self, code: str) -> str:
+        if code.isdigit():
+            if code.startswith("6"):
+                return f"1.{code}"
+            else:
+                return f"0.{code}"
+        return f"0.{code}"
+
+    def _safe_float(self, value: Any) -> float | None:
+        if value is None or value == "-" or value == "":
+            return None
+        try:
+            return float(value)
+        except (ValueError, TypeError):
+            return None
+
+
+class DividendDataCollector(FundamentalDataCollector):
+    """
+    Collector for dividend data (股息分红数据).
+    采集历史分红数据，包括每股股息、分红方案等。
+    """
+
+    def __init__(self, config: CollectionConfig | None = None) -> None:
+        if config is None:
+            config = CollectionConfig(
+                source=DataSource.EASTMONEY,
+                data_type=DataType.STOCK_FUNDAMENTAL,
+                category=DataCategory.FUNDAMENTAL,
+                frequency=DataFrequency.ANNUALLY,
+            )
+        super().__init__(config)
+
+    @property
+    def source(self) -> DataSource:
+        return DataSource.EASTMONEY
+
+    async def _initialize(self) -> None:
+        logger.info(f"Initialized {self.__class__.__name__}")
+
+    async def _cleanup(self) -> None:
+        logger.info(f"Cleaned up {self.__class__.__name__}")
+
+    async def _collect(self, **kwargs: Any) -> list[dict[str, Any]]:
+        code = kwargs.get("code")
+        if not code:
+            raise ValueError("code parameter is required")
+        return await self._collect_dividend(code)
+
+    async def _collect_dividend(self, code: str) -> list[dict[str, Any]]:
+        import aiohttp
+
+        code_id = self._get_code_id(code)
+        
+        url = "https://emweb.eastmoney.com/PC_HSF10/BonusFinancing/PageAjax"
+        params = {
+            "code": code_id,
+        }
+
+        records = []
+        async with aiohttp.ClientSession() as session:
+            try:
+                async with session.get(url, params=params) as response:
+                    data = await response.json()
+                
+                if data.get("fhps"):
+                    for item in data["fhps"]:
+                        records.append({
+                            "code": code,
+                            "report_year": item.get("rq", "")[:4] if item.get("rq") else None,
+                            "ex_date": item.get("cqcxr"),
+                            "dividend_per_share": self._safe_float(item.get("sg")),
+                            "bonus_per_share": self._safe_float(item.get("pg")),
+                            "transfer_per_share": self._safe_float(item.get("zz")),
+                            "total_dividend": self._safe_float(item.get("hj")),
+                            "dividend_yield": self._safe_float(item.get("gxl")),
+                        })
+            except Exception as e:
+                logger.warning(f"Failed to collect dividend data for {code}: {e}")
+
+        return records
+
+    def _get_record_hash(self, record: dict[str, Any]) -> str:
+        return f"{record.get('code')}_{record.get('report_year')}"
+
+    async def _is_valid(self, record: dict[str, Any]) -> bool:
+        return record.get("code") is not None and record.get("report_year") is not None
+
+    def _get_code_id(self, code: str) -> str:
+        if code.isdigit():
+            if code.startswith("6"):
+                return f"1.{code}"
+            else:
+                return f"0.{code}"
+        return f"0.{code}"
+
+    def _safe_float(self, value: Any) -> float | None:
+        if value is None or value == "-" or value == "":
+            return None
+        try:
+            return float(value)
+        except (ValueError, TypeError):
+            return None
+
     def _get_previous_month(self) -> str:
         from datetime import timedelta
         prev = datetime.now() - timedelta(days=30)

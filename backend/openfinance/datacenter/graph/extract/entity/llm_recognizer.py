@@ -16,7 +16,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
-from fopenfinance.datacenter.knowledge.entity.types import (
+from openfinance.datacenter.graph.extract.entity.types import (
     BaseEntity,
     EntityType,
     create_entity,
@@ -238,7 +238,7 @@ class HybridEntityRecognizer:
         llm_config: LLMConfig | None = None,
         use_llm: bool = True,
     ) -> None:
-        from fopenfinance.datacenter.knowledge.entity.recognizer import (
+        from openfinance.datacenter.graph.extract.entity.recognizer import (
             EntityRecognizer,
             RecognitionConfig,
         )

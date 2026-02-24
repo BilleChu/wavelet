@@ -547,6 +547,8 @@ class {class_name}Strategy(BaseStrategy):
                 "DATABASE_URL",
                 "postgresql://openfinance:openfinance@localhost:5432/openfinance"
             )
+            if "+asyncpg" in db_url:
+                db_url = db_url.replace("+asyncpg", "")
             
             conn = await asyncpg.connect(db_url)
             

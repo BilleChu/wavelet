@@ -272,7 +272,7 @@ async def web_fetch(
     Returns:
         Page content or error message.
     """
-    from openfinance.agents.utils.web_fetch import web_fetch as _web_fetch, FetchMethod
+    from openfinance.utils.web_fetch import web_fetch as _web_fetch, FetchMethod
     
     method_map = {
         "auto": FetchMethod.AUTO,

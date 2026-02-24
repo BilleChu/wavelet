@@ -323,7 +323,12 @@ class KLineCollector(MarketDataCollector):
 
         async with aiohttp.ClientSession() as session:
             async with session.get(url, params=params) as response:
-                data = await response.json()
+                text = await response.text()
+                try:
+                    data = json.loads(text)
+                except json.JSONDecodeError:
+                    logger.warning(f"Failed to parse JSON from eastmoney API: {text[:200]}")
+                    data = {}
 
         records = []
         if data.get("data") and data["data"].get("klines"):

@@ -12,7 +12,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
-from fopenfinance.datacenter.knowledge.entity.types import (
+from openfinance.datacenter.graph.extract.entity.types import (
     BaseEntity,
     EntityType,
     create_entity,

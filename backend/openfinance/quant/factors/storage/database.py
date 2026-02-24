@@ -364,30 +364,28 @@ class FactorStorage:
         async with self._pool.acquire() as conn:
             records = [
                 (
-                    r.factor_id, r.code, r.trade_date, r.value, r.value_normalized,
-                    r.value_rank, r.value_percentile, r.value_neutralized,
-                    r.signal, r.confidence, r.data_quality, r.metadata,
+                    r.factor_id, r.code, r.trade_date, 
+                    r.factor_id, 
+                    "technical",
+                    r.value,
+                    r.value_rank,
+                    r.value_percentile,
+                    r.value_neutralized is not None,
                 )
                 for r in results
             ]
             
             await conn.executemany("""
-                INSERT INTO factor_data (
-                    factor_id, code, trade_date, value, value_normalized,
-                    value_rank, value_percentile, value_neutralized,
-                    signal, confidence, data_quality, metadata
-                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+                INSERT INTO openfinance.factor_data (
+                    factor_id, code, trade_date, factor_name, factor_category,
+                    factor_value, factor_rank, factor_percentile, neutralized
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
                 ON CONFLICT (factor_id, code, trade_date) DO UPDATE SET
-                    value = EXCLUDED.value,
-                    value_normalized = EXCLUDED.value_normalized,
-                    value_rank = EXCLUDED.value_rank,
-                    value_percentile = EXCLUDED.value_percentile,
-                    value_neutralized = EXCLUDED.value_neutralized,
-                    signal = EXCLUDED.signal,
-                    confidence = EXCLUDED.confidence,
-                    data_quality = EXCLUDED.data_quality,
-                    metadata = EXCLUDED.metadata,
-                    updated_at = CURRENT_TIMESTAMP
+                    factor_value = EXCLUDED.factor_value,
+                    factor_rank = EXCLUDED.factor_rank,
+                    factor_percentile = EXCLUDED.factor_percentile,
+                    neutralized = EXCLUDED.neutralized,
+                    collected_at = CURRENT_TIMESTAMP
             """, records)
             
             return len(results)
@@ -426,11 +424,42 @@ class FactorStorage:
         
         async with self._pool.acquire() as conn:
             rows = await conn.fetch(
-                f"SELECT * FROM factor_data WHERE {where_clause} {order_clause} {limit_clause}",
+                f"SELECT factor_id, code, trade_date, factor_value as value, "
+                f"factor_rank as value_rank, factor_percentile as value_percentile, "
+                f"neutralized as value_neutralized, "
+                f"0.0 as value_normalized, 0.0 as signal, 0.5 as confidence, 'high' as data_quality, "
+                f"'{{}}'::jsonb as metadata, collected_at as created_at, collected_at as updated_at "
+                f"FROM openfinance.factor_data WHERE {where_clause} {order_clause} {limit_clause}",
                 *params,
             )
             
             return [self._row_to_data_record(row) for row in rows]
+    
+    def _row_to_data_record(self, row: asyncpg.Record) -> FactorDataRecord:
+        """Convert database row to data record."""
+        metadata = row.get("metadata")
+        if isinstance(metadata, str):
+            import json
+            metadata = json.loads(metadata) if metadata else {}
+        elif metadata is None:
+            metadata = {}
+            
+        return FactorDataRecord(
+            factor_id=row["factor_id"],
+            code=row["code"],
+            trade_date=row["trade_date"],
+            value=row["value"],
+            value_normalized=row.get("value_normalized"),
+            value_rank=row.get("value_rank"),
+            value_percentile=row.get("value_percentile"),
+            value_neutralized=row.get("value_neutralized"),
+            signal=row.get("signal", 0.0),
+            confidence=row.get("confidence", 0.5),
+            data_quality=row.get("data_quality", "high"),
+            metadata=metadata,
+            created_at=row.get("created_at"),
+            updated_at=row.get("updated_at"),
+        )
     
     async def get_latest_factor_values(
         self,
@@ -449,32 +478,13 @@ class FactorStorage:
         
         async with self._pool.acquire() as conn:
             rows = await conn.fetch(f"""
-                SELECT DISTINCT ON (code) code, value, trade_date
-                FROM factor_data
+                SELECT DISTINCT ON (code) code, factor_value as value, trade_date
+                FROM openfinance.factor_data
                 WHERE {where_clause}
                 ORDER BY code, trade_date DESC
             """, *params)
             
             return {row["code"]: row["value"] for row in rows if row["value"] is not None}
-    
-    def _row_to_data_record(self, row: asyncpg.Record) -> FactorDataRecord:
-        """Convert database row to data record."""
-        return FactorDataRecord(
-            factor_id=row["factor_id"],
-            code=row["code"],
-            trade_date=row["trade_date"],
-            value=row["value"],
-            value_normalized=row["value_normalized"],
-            value_rank=row["value_rank"],
-            value_percentile=row["value_percentile"],
-            value_neutralized=row["value_neutralized"],
-            signal=row["signal"],
-            confidence=row["confidence"],
-            data_quality=row["data_quality"],
-            metadata=row["metadata"] or {},
-            created_at=row["created_at"],
-            updated_at=row["updated_at"],
-        )
     
     async def delete_factor_data(
         self,
@@ -493,7 +503,7 @@ class FactorStorage:
         
         async with self._pool.acquire() as conn:
             result = await conn.execute(
-                f"DELETE FROM factor_data WHERE {where_clause}",
+                f"DELETE FROM openfinance.factor_data WHERE {where_clause}",
                 *params,
             )
             
@@ -526,14 +536,14 @@ class FactorStorage:
             row = await conn.fetchrow(f"""
                 SELECT 
                     COUNT(*) as total_count,
-                    COUNT(value) as valid_count,
-                    AVG(value) as mean_value,
-                    STDDEV(value) as std_value,
-                    MIN(value) as min_value,
-                    MAX(value) as max_value,
+                    COUNT(factor_value) as valid_count,
+                    AVG(factor_value) as mean_value,
+                    STDDEV(factor_value) as std_value,
+                    MIN(factor_value) as min_value,
+                    MAX(factor_value) as max_value,
                     MIN(trade_date) as min_date,
                     MAX(trade_date) as max_date
-                FROM factor_data
+                FROM openfinance.factor_data
                 WHERE {where_clause}
             """, *params)
             

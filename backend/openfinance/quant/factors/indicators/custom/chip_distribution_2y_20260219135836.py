@@ -58,7 +58,8 @@ class ChipDistribution2y20260219135836Factor(FactorBase):
         3. 计算分布的标准差倒数作为集中度指标
         4. 值越高表示筹码越集中在当前价格附近
         """
-        if not klines or len(klines) < self.metadata.lookback_period:
+        min_required = 100
+        if not klines or len(klines) < min_required:
             return None
         
         close = np.array([k.close for k in klines])
@@ -66,10 +67,12 @@ class ChipDistribution2y20260219135836Factor(FactorBase):
         low = np.array([k.low for k in klines])
         volume = np.array([k.volume for k in klines])
         
-        period = params.get("period", self.metadata.lookback_period)
+        period = params.get("period", min(self.metadata.lookback_period, len(klines)))
         num_bins = params.get("num_bins", 50)
         
-        if len(close) < period:
+        period = min(period, len(close))
+        
+        if len(close) < min_required:
             return None
         
         close = close[-period:]

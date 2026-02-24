@@ -419,6 +419,8 @@ async def _get_stock_data(code: str, lookback_days: int = 60) -> list:
         "DATABASE_URL",
         "postgresql://openfinance:openfinance@localhost:5432/openfinance"
     )
+    if "+asyncpg" in db_url:
+        db_url = db_url.replace("+asyncpg", "")
     
     try:
         conn = await asyncpg.connect(db_url)

@@ -38,6 +38,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 
 import { factorCreatorService, FactorGenerateResponse, FactorSuggestion, StreamEvent } from '@/services/factorCreatorService';
+import { quantService } from '@/services/quantService';
 
 interface FactorCreatorProps {
   onFactorCreated?: (factorId: string) => void;
@@ -206,9 +207,15 @@ export default function FactorCreator({ onFactorCreated, onCancel }: FactorCreat
       });
 
       if (response.success) {
+        try {
+          await quantService.refreshFactors();
+        } catch (refreshError) {
+          console.warn('Failed to refresh factors:', refreshError);
+        }
+        
         setCurrentStep('save');
         if (onFactorCreated) {
-          setTimeout(() => onFactorCreated(generatedFactor.factor_id), 1500);
+          setTimeout(() => onFactorCreated(generatedFactor.factor_id), 500);
         }
       }
     } catch (error) {

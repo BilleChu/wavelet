@@ -1,0 +1,143 @@
+# ADS 数据类型配置
+# 所有数据模型通过此配置驱动
+# 
+# 字段别名说明:
+#   name: ADS 模型字段名
+#   alias: ORM 字段名（用于从 ORM 加载数据）
+#   例如: ADSFactorModel.factor_type = Field(alias="factor_category")
+#   表示 ADS 字段 factor_type 对应 ORM 字段 factor_category
+
+data_types:
+  # 市场数据
+  - model_id: kline
+    category: market
+    description: 股票K线数据
+    orm_model: StockDailyQuoteModel
+    table_name: stock_daily_quote
+    base_model: ADSModelWithCode
+    primary_key: [code, trade_date]
+
+  - model_id: money_flow
+    category: market
+    description: 资金流向数据
+    orm_model: StockMoneyFlowModel
+    table_name: stock_money_flow
+    base_model: ADSModelWithCode
+    primary_key: [code, trade_date]
+
+  - model_id: stock_basic
+    category: market
+    description: 股票基本信息
+    orm_model: StockBasicModel
+    table_name: stock_basic
+    base_model: ADSModel
+    primary_key: [code]
+
+  - model_id: option_quote
+    category: market
+    description: 期权行情数据
+    orm_model: OptionQuoteModel
+    table_name: option_quote
+    base_model: ADSModel
+    primary_key: [id]
+
+  - model_id: future_quote
+    category: market
+    description: 期货行情数据
+    orm_model: FutureQuoteModel
+    table_name: future_quote
+    base_model: ADSModel
+    primary_key: [id]
+
+  # 财务数据
+  - model_id: financial_indicator
+    category: financial
+    description: 财务指标数据
+    orm_model: StockFinancialIndicatorModel
+    table_name: stock_financial_indicator
+    base_model: ADSModelWithCode
+    primary_key: [code, report_date]
+
+  - model_id: income_statement
+    category: financial
+    description: 利润表
+    orm_model: IncomeStatementModel
+    table_name: income_statement
+    base_model: ADSModelWithCode
+    primary_key: [code, report_date]
+
+  - model_id: balance_sheet
+    category: financial
+    description: 资产负债表
+    orm_model: BalanceSheetModel
+    table_name: balance_sheet
+    base_model: ADSModelWithCode
+    primary_key: [code, report_date]
+
+  - model_id: cash_flow
+    category: financial
+    description: 现金流量表
+    orm_model: CashFlowModel
+    table_name: cash_flow
+    base_model: ADSModelWithCode
+    primary_key: [code, report_date]
+
+  # 量化数据
+  - model_id: factor
+    category: quant
+    description: 因子数据
+    orm_model: FactorDataModel
+    table_name: factor_data
+    base_model: ADSModelWithCode
+    primary_key: [factor_id, code, trade_date]
+    fields:
+      - name: factor_id
+        type: string
+        required: true
+        description: 因子标识符
+      - name: factor_name
+        type: string
+        description: 因子名称
+      - name: factor_type
+        type: string
+        required: true
+        alias: factor_category
+        description: 因子类型
+      - name: value
+        type: float
+        alias: factor_value
+        description: 因子值
+      - name: value_rank
+        type: int
+        alias: factor_rank
+        description: 因子排名
+      - name: value_percentile
+        type: float
+        alias: factor_percentile
+        description: 因子百分位
+      - name: neutralized
+        type: bool
+        default: false
+        description: 是否中性化
+      - name: calculated_at
+        type: datetime
+        alias: collected_at
+        description: 计算时间
+
+  # 情绪数据
+  - model_id: news
+    category: sentiment
+    description: 新闻数据
+    orm_model: NewsModel
+    table_name: news
+    base_model: ADSModel
+    primary_key: [id]
+
+  # 宏观数据
+  - model_id: macro_economic
+    category: macro
+    description: 宏观经济数据
+    orm_model: MacroEconomicModel
+    table_name: macro_economic
+    base_model: ADSModel
+    primary_key: [id]

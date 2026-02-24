@@ -465,10 +465,13 @@ async def create_daily_dag() -> dict[str, Any]:
 @router.post("/dags/load-config")
 async def load_dags_from_config() -> dict[str, Any]:
     """Load all DAGs from pipeline configuration file."""
+    from openfinance.datacenter.task.pipeline.pipeline_config import reload_pipelines
+    
     engine = get_dag_engine()
     builder = PipelineBuilder(engine)
     
     try:
+        reload_pipelines()
         pipelines = get_all_pipelines()
         
         loaded = []

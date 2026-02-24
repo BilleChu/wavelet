@@ -119,8 +119,12 @@ class FactorResult(BaseModel):
     trade_date: date = Field(..., description="Trading date")
     value: float | None = Field(None, description="Raw factor value")
     value_normalized: float | None = Field(None, description="Normalized value")
+    value_rank: int | None = Field(None, description="Rank among all stocks")
+    value_percentile: float | None = Field(None, description="Percentile rank")
+    value_neutralized: float | None = Field(None, description="Neutralized value")
     signal: float = Field(0.0, ge=-1.0, le=1.0, description="Trading signal")
     confidence: float = Field(0.5, ge=0.0, le=1.0, description="Signal confidence")
+    data_quality: str = Field("high", description="Data quality indicator")
     metadata: dict[str, Any] = Field(default_factory=dict)
     
     @property
@@ -134,8 +138,12 @@ class FactorResult(BaseModel):
             "trade_date": self.trade_date.isoformat(),
             "value": self.value,
             "value_normalized": self.value_normalized,
+            "value_rank": self.value_rank,
+            "value_percentile": self.value_percentile,
+            "value_neutralized": self.value_neutralized,
             "signal": self.signal,
             "confidence": self.confidence,
+            "data_quality": self.data_quality,
             "metadata": self.metadata,
         }
 
@@ -271,6 +279,8 @@ class FactorBase(ABC, Generic[T]):
         start_time = time.perf_counter()
         
         try:
+            _ = self.metadata
+            
             merged_params = {**self._config.parameters, **params}
             value = self._calculate(klines, **merged_params)
             

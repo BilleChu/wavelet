@@ -63,6 +63,20 @@ from openfinance.datacenter.models.analytical.meta import (
     ADSFieldMetaModel,
 )
 
+from openfinance.datacenter.models.analytical.repository import (
+    GenericADSRepository,
+    ADSKLineRepository,
+    ADSFactorRepository,
+    ADSRepository,
+)
+
+from openfinance.datacenter.models.analytical.registry import (
+    ADSModelRegistry,
+    ADSModelDefinition,
+    ADSFieldDefinition,
+    register_ads_model,
+)
+
 
 __all__ = [
     "ADSModel",
@@ -99,6 +113,14 @@ __all__ = [
     "ADSBacktestResultModel",
     "ADSMetaModel",
     "ADSFieldMetaModel",
+    "GenericADSRepository",
+    "ADSKLineRepository",
+    "ADSFactorRepository",
+    "ADSRepository",
+    "ADSModelRegistry",
+    "ADSModelDefinition",
+    "ADSFieldDefinition",
+    "register_ads_model",
     "ADSService",
     "ADSConfig",
     "get_ads_service",

@@ -527,6 +527,68 @@ class UnifiedFactorRegistry:
                 logger.error(f"Failed to load factor from {factor_file}: {e}")
         
         return loaded
+    
+    def reload_custom_factors(self) -> int:
+        """
+        Reload all custom factors from the custom indicators directory.
+        
+        This method discovers and re-imports all Python files in the
+        factors/indicators/custom/ directory, triggering the @register_factor
+        decorator to register any new or updated factors.
+        
+        Returns:
+            int: Number of custom factors loaded
+        """
+        import importlib
+        import sys
+        from pathlib import Path
+        
+        custom_dir = Path(__file__).parent / "indicators" / "custom"
+        if not custom_dir.exists():
+            logger.warning(f"Custom factors directory not found: {custom_dir}")
+            return 0
+        
+        loaded = 0
+        for py_file in custom_dir.glob("*.py"):
+            if py_file.name.startswith("_"):
+                continue
+            
+            module_name = f"openfinance.quant.factors.indicators.custom.{py_file.stem}"
+            
+            try:
+                if module_name in sys.modules:
+                    module = importlib.reload(sys.modules[module_name])
+                else:
+                    module = importlib.import_module(module_name)
+                
+                for attr_name in dir(module):
+                    attr = getattr(module, attr_name)
+                    if isinstance(attr, type) and issubclass(attr, FactorBase) and attr is not FactorBase:
+                        if attr.__module__ == module_name:
+                            loaded += 1
+                            logger.debug(f"Loaded custom factor class: {attr_name}")
+                            
+            except Exception as e:
+                logger.error(f"Failed to load custom factor module {module_name}: {e}")
+        
+        logger.info(f"Reloaded {loaded} custom factor(s)")
+        return loaded
+    
+    def refresh(self) -> dict:
+        """
+        Refresh the registry by reloading custom factors.
+        
+        Returns:
+            dict: Statistics about the refresh
+        """
+        custom_loaded = self.reload_custom_factors()
+        storage_loaded = self.load_from_storage()
+        
+        return {
+            "custom_factors_loaded": custom_loaded,
+            "storage_factors_loaded": storage_loaded,
+            "total_factors": len(self._factors),
+        }
 
 
 def get_factor_registry() -> UnifiedFactorRegistry:

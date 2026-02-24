@@ -205,6 +205,31 @@ async def list_factors(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.post("/refresh")
+async def refresh_factors():
+    """
+    Refresh the factor registry to pick up newly saved factors.
+    
+    This endpoint should be called after saving a new custom factor
+    to ensure it appears in the factor list immediately.
+    """
+    try:
+        from openfinance.quant.factors.registry import get_factor_registry
+        
+        registry = get_factor_registry()
+        result = registry.refresh()
+        
+        return {
+            "success": True,
+            "message": f"Refreshed {result['total_factors']} factors",
+            **result,
+        }
+    
+    except Exception as e:
+        logger.exception(f"Error refreshing factors: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/registry")
 async def get_factor_registry_endpoint():
     """
@@ -280,9 +305,16 @@ async def query_factor_data(request: FactorDataQueryRequest):
     Query factor data for a specific stock.
     
     Returns factor values, normalized values, and chart data.
+    First tries to load from database, then falls back to real-time calculation.
+    
+    Stock code format: Supports 6-digit code (000001), Wind format (000001.SZ), 
+    or Eastmoney format (000001.SZ). All formats are normalized to 6-digit code.
     """
     try:
         from openfinance.quant.factors.registry import get_factor_registry
+        from openfinance.quant.factors.storage.database import get_factor_storage
+        from openfinance.utils.stock_code import normalize_stock_code
+        from datetime import date as date_type
         
         registry = get_factor_registry()
         factor_def = registry.get(request.factor_id)
@@ -291,90 +323,116 @@ async def query_factor_data(request: FactorDataQueryRequest):
             raise HTTPException(status_code=404, detail=f"Factor not found: {request.factor_id}")
         
         # Calculate date range
+        factor_lookback = factor_def.lookback_period or 20
+        extra_days = factor_lookback * 2
+        
         if request.lookback_days:
             end_date = datetime.now().strftime("%Y-%m-%d")
-            start_date = (datetime.now() - timedelta(days=request.lookback_days)).strftime("%Y-%m-%d")
+            query_start_date = (datetime.now() - timedelta(days=request.lookback_days + extra_days)).strftime("%Y-%m-%d")
+            result_start_date = (datetime.now() - timedelta(days=request.lookback_days)).strftime("%Y-%m-%d")
         else:
             start_date = request.start_date or (datetime.now() - timedelta(days=365)).strftime("%Y-%m-%d")
             end_date = request.end_date or datetime.now().strftime("%Y-%m-%d")
+            query_start_date = start_date
+            result_start_date = start_date
         
-        # Normalize stock code: remove .SH/.SZ suffix if present
-        stock_code = request.stock_code
-        if '.' in stock_code:
-            stock_code = stock_code.split('.')[0]
+        # Normalize stock code using utility function
+        stock_code = normalize_stock_code(request.stock_code)
         
-        # Fetch market data from database and calculate factor
-        import asyncpg
-        import os
-        from datetime import date as date_type
-        
-        market_data = []
-        
-        try:
-            # Connect to database
-            db_url = os.getenv(
-                "DATABASE_URL",
-                "postgresql://openfinance:openfinance@localhost:5432/openfinance"
-            )
-            conn = await asyncpg.connect(db_url)
-            
-            # Query stock daily quotes
-            rows = await conn.fetch("""
-                SELECT trade_date, open, high, low, close, volume, amount
-                FROM openfinance.stock_daily_quote
-                WHERE code = $1 AND trade_date >= $2 AND trade_date <= $3
-                ORDER BY trade_date ASC
-            """, stock_code, date_type.fromisoformat(start_date), date_type.fromisoformat(end_date))
-            
-            await conn.close()
-            
-            if rows:
-                market_data = [
-                    {
-                        "trade_date": str(row["trade_date"]),
-                        "open": float(row["open"]) if row["open"] else None,
-                        "high": float(row["high"]) if row["high"] else None,
-                        "low": float(row["low"]) if row["low"] else None,
-                        "close": float(row["close"]) if row["close"] else None,
-                        "volume": int(row["volume"]) if row["volume"] else None,
-                        "amount": float(row["amount"]) if row["amount"] else None,
-                    }
-                    for row in rows
-                ]
-        except Exception as e:
-            logger.warning(f"Database query failed: {e}")
-        
-        # If no market data, return empty result
-        if not market_data:
-            return {
-                "factor_id": request.factor_id,
-                "factor_name": factor_def.name,
-                "stock_code": request.stock_code,
-                "frequency": request.frequency,
-                "data": [],
-                "chart_data": {"labels": [], "datasets": []},
-                "statistics": {},
-                "error": f"No market data found for stock {stock_code}",
-            }
-        
-        # Create DataFrame for factor calculation
-        df = pd.DataFrame(market_data)
-        df["trade_date"] = pd.to_datetime(df["trade_date"])
-        df = df.set_index("trade_date")
-        
-        # Calculate factor values based on factor definition
-        factor_values = _calculate_factor_from_definition(factor_def, df, stock_code)
-        
-        # Build response data
         data_list = []
-        for i, (date, value) in enumerate(factor_values.items()):
-            data_list.append({
-                "trade_date": str(date.date()),
-                "value": float(value) if not pd.isna(value) else None,
-                "value_normalized": None,
-                "value_rank": None,
-                "value_percentile": None,
-            })
+        
+        # First, try to load from database
+        try:
+            storage = await get_factor_storage()
+            db_data = await storage.load_factor_data(
+                factor_id=request.factor_id,
+                codes=[stock_code],
+                start_date=date_type.fromisoformat(start_date),
+                end_date=date_type.fromisoformat(end_date),
+            )
+            
+            if db_data:
+                for record in db_data:
+                    data_list.append({
+                        "trade_date": str(record.trade_date),
+                        "value": float(record.value) if record.value is not None else None,
+                        "value_normalized": record.value_normalized,
+                        "value_rank": record.value_rank,
+                        "value_percentile": record.value_percentile,
+                    })
+                data_list.sort(key=lambda x: x["trade_date"])
+        except Exception as e:
+            logger.warning(f"Failed to load factor data from database: {e}")
+        
+        # If no data from database, calculate from market data
+        if not data_list:
+            import asyncpg
+            import os
+            
+            market_data = []
+            
+            try:
+                db_url = os.getenv(
+                    "DATABASE_URL",
+                    "postgresql://openfinance:openfinance@localhost:5432/openfinance"
+                )
+                if "+asyncpg" in db_url:
+                    db_url = db_url.replace("+asyncpg", "")
+                conn = await asyncpg.connect(db_url)
+                
+                rows = await conn.fetch("""
+                    SELECT trade_date, open, high, low, close, volume, amount
+                    FROM openfinance.stock_daily_quote
+                    WHERE code = $1 AND trade_date >= $2 AND trade_date <= $3
+                    ORDER BY trade_date ASC
+                """, stock_code, date_type.fromisoformat(query_start_date), date_type.fromisoformat(end_date))
+                
+                await conn.close()
+                
+                if rows:
+                    market_data = [
+                        {
+                            "trade_date": str(row["trade_date"]),
+                            "open": float(row["open"]) if row["open"] else None,
+                            "high": float(row["high"]) if row["high"] else None,
+                            "low": float(row["low"]) if row["low"] else None,
+                            "close": float(row["close"]) if row["close"] else None,
+                            "volume": int(row["volume"]) if row["volume"] else None,
+                            "amount": float(row["amount"]) if row["amount"] else None,
+                        }
+                        for row in rows
+                    ]
+            except Exception as e:
+                logger.warning(f"Database query failed: {e}")
+            
+            if not market_data:
+                return {
+                    "factor_id": request.factor_id,
+                    "factor_name": factor_def.name,
+                    "stock_code": request.stock_code,
+                    "frequency": request.frequency,
+                    "data": [],
+                    "chart_data": {"labels": [], "datasets": []},
+                    "statistics": {},
+                    "error": f"No market data found for stock {stock_code}",
+                }
+            
+            df = pd.DataFrame(market_data)
+            df["trade_date"] = pd.to_datetime(df["trade_date"])
+            df = df.set_index("trade_date")
+            
+            factor_values = _calculate_factor_from_definition(factor_def, df, stock_code)
+            
+            result_start = pd.to_datetime(result_start_date)
+            for i, (date, value) in enumerate(factor_values.items()):
+                if date >= result_start:
+                    data_list.append({
+                        "trade_date": str(date.date()),
+                        "value": float(value) if not pd.isna(value) else None,
+                        "value_normalized": None,
+                        "value_rank": None,
+                        "value_percentile": None,
+                    })
         
         # Calculate normalized values (z-score)
         valid_values = [d["value"] for d in data_list if d["value"] is not None]
@@ -382,7 +440,7 @@ async def query_factor_data(request: FactorDataQueryRequest):
             mean_val = np.mean(valid_values)
             std_val = np.std(valid_values)
             for d in data_list:
-                if d["value"] is not None:
+                if d["value"] is not None and d["value_normalized"] is None:
                     d["value_normalized"] = (d["value"] - mean_val) / std_val if std_val > 0 else 0
         
         # Build chart data
@@ -464,8 +522,13 @@ def _calculate_factor_from_definition(factor_def, df: pd.DataFrame, stock_code: 
         
         results = []
         lookback = factor_def.lookback_period or 20
+        min_required = max(20, lookback // 5)
+        start_idx = max(min_required - 1, lookback - 1) if len(klines) >= lookback else min_required - 1
         
-        for i in range(lookback - 1, len(klines)):
+        if len(klines) < min_required:
+            return pd.Series(dtype=float)
+        
+        for i in range(start_idx, len(klines)):
             window = klines[:i + 1]
             result = factor_instance.calculate(window)
             if result and result.value is not None:
@@ -850,6 +913,8 @@ async def test_factor_value(
                     "DATABASE_URL",
                     "postgresql://openfinance:openfinance@localhost:5432/openfinance"
                 )
+                if "+asyncpg" in db_url:
+                    db_url = db_url.replace("+asyncpg", "")
                 
                 conn = await asyncpg.connect(db_url)
                 row = await conn.fetchrow(
@@ -997,6 +1062,8 @@ async def delete_factor(factor_id: str):
                 "DATABASE_URL",
                 "postgresql://openfinance:openfinance@localhost:5432/openfinance"
             )
+            if "+asyncpg" in db_url:
+                db_url = db_url.replace("+asyncpg", "")
             
             conn = await asyncpg.connect(db_url)
             

@@ -31,17 +31,38 @@ class ADSFactorModel(ADSModelWithCode, ADSModelWithDate):
     - value_normalized: Standardized value (z-score)
     - value_rank: Rank in universe
     - value_percentile: Percentile in universe
+    
+    Field Aliases (for ORM compatibility):
+    - factor_category -> factor_type
+    - factor_value -> value
+    - factor_rank -> value_rank
+    - factor_percentile -> value_percentile
     """
     
     factor_id: str = Field(..., description="Factor identifier (must start with 'factor_')")
     factor_name: str | None = Field(None, description="Factor display name")
-    factor_type: str = Field(..., description="Factor type: value/momentum/quality/volatility/etc")
-    factor_category: str | None = Field(None, description="Factor category for grouping")
+    factor_type: str = Field(
+        ..., 
+        description="Factor type: value/momentum/quality/volatility/etc",
+        alias="factor_category",
+    )
     
-    value: float | None = Field(None, description="Raw factor value")
+    value: float | None = Field(
+        None, 
+        description="Raw factor value",
+        alias="factor_value",
+    )
     value_normalized: float | None = Field(None, description="Standardized value (z-score)")
-    value_rank: int | None = Field(None, description="Rank in universe")
-    value_percentile: float | None = Field(None, description="Percentile (0-100)")
+    value_rank: int | None = Field(
+        None, 
+        description="Rank in universe",
+        alias="factor_rank",
+    )
+    value_percentile: float | None = Field(
+        None, 
+        description="Percentile (0-100)",
+        alias="factor_percentile",
+    )
     
     parameters: dict[str, Any] = Field(
         default_factory=dict,
@@ -55,7 +76,11 @@ class ADSFactorModel(ADSModelWithCode, ADSModelWithDate):
     neutralized: bool = Field(default=False, description="Whether neutralized")
     neutralization_method: str | None = Field(None, description="Neutralization method")
     
-    calculated_at: datetime | None = Field(None, description="Calculation timestamp")
+    calculated_at: datetime | None = Field(
+        None, 
+        description="Calculation timestamp",
+        alias="collected_at",
+    )
     
     @field_validator("factor_id")
     @classmethod

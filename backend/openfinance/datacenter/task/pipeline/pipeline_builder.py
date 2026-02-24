@@ -86,8 +86,8 @@ class PipelineBuilder:
         dag.metadata = {
             **config.metadata,
             "pipeline_id": config.pipeline_id,
-            "schedule_type": config.schedule_type.value,
-            "schedule_expr": config.schedule_expr,
+            "schedule_type": config.schedule.type.value,
+            "schedule_expr": config.schedule.expression,
             "max_concurrent_tasks": config.max_concurrent_tasks,
         }
         

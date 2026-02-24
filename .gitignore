@@ -10,8 +10,6 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib/
-lib64/
 parts/
 sdist/
 var/
@@ -19,6 +17,10 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
+
+# Python lib (only at root level for Python packages)
+/lib/
+/lib64/
 
 # Virtual Environment
 venv/
@@ -41,8 +43,9 @@ logs/
 .env.test.local
 .env.production.local
 .env
-.env.*
-*.env
+# Allow .env.example files to be committed
+!.env.example
+!**/.env.example
 
 # Node.js
 node_modules/

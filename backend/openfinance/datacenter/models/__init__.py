@@ -1,35 +1,18 @@
 """
 Data Models Module for Data Center.
 
-This module provides:
-- Analytical: Analytical Data Store models (unified business layer)
-- Framework: Generic model management infrastructure
-- ORM: SQLAlchemy database models
-
-Architecture:
+架构:
 ┌─────────────────────────────────────────────────────────────┐
-│                    Analytical Models (Business Layer)        │
-│         Unified data models for all business logic          │
+│                    ADS Models (业务层)                        │
+│         ADSModelRegistry + 统一业务模型                       │
 ├─────────────────────────────────────────────────────────────┤
-│                    Model Framework                           │
-│         (registry, transformer, mapping)                     │
+│                    Repository Layer                          │
+│         GenericADSRepository + 具体 Repository               │
 ├─────────────────────────────────────────────────────────────┤
 │                    ORM Models                                │
-│         (SQLAlchemy models for database)                     │
+│         SQLAlchemy 数据库模型                                 │
 └─────────────────────────────────────────────────────────────┘
 """
-
-from .framework import (
-    ModelRegistry,
-    ModelMetadata,
-    ModelCapability,
-    register_model,
-    ModelTransformer,
-    FieldMapping,
-    ADSORMTransformer,
-    create_orm_to_ads_transformer,
-    register_ads_orm_mapping,
-)
 
 from .mappings import (
     register_all_mappings,
@@ -56,6 +39,10 @@ from .orm import (
     MacroEconomicModel,
     ESGRatingModel,
     EventModel,
+    IncomeStatementModel,
+    BalanceSheetModel,
+    CashFlowModel,
+    DividendDataModel,
     VALID_ENTITY_TYPES,
     VALID_RELATION_TYPES,
     ENTITY_TYPE_LABELS,
@@ -95,19 +82,16 @@ from openfinance.datacenter.models.analytical import (
     ADSBacktestResultModel,
     ADSMetaModel,
     ADSFieldMetaModel,
+    ADSModelRegistry,
+    ADSModelDefinition,
+    register_ads_model,
+    GenericADSRepository,
+    ADSKLineRepository,
+    ADSFactorRepository,
     get_model as get_ads_model,
 )
 
 __all__ = [
-    "ModelRegistry",
-    "ModelMetadata",
-    "ModelCapability",
-    "register_model",
-    "ModelTransformer",
-    "FieldMapping",
-    "ADSORMTransformer",
-    "create_orm_to_ads_transformer",
-    "register_ads_orm_mapping",
     "register_all_mappings",
     "MAPPING_CONFIG",
     "Base",
@@ -129,6 +113,10 @@ __all__ = [
     "MacroEconomicModel",
     "ESGRatingModel",
     "EventModel",
+    "IncomeStatementModel",
+    "BalanceSheetModel",
+    "CashFlowModel",
+    "DividendDataModel",
     "VALID_ENTITY_TYPES",
     "VALID_RELATION_TYPES",
     "ENTITY_TYPE_LABELS",
@@ -165,5 +153,11 @@ __all__ = [
     "ADSBacktestResultModel",
     "ADSMetaModel",
     "ADSFieldMetaModel",
+    "ADSModelRegistry",
+    "ADSModelDefinition",
+    "register_ads_model",
+    "GenericADSRepository",
+    "ADSKLineRepository",
+    "ADSFactorRepository",
     "get_ads_model",
 ]

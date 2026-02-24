@@ -1,7 +1,7 @@
 """
 Tests for Data Center Modules.
 
-Tests for SourceConfigManager, UnifiedMonitor, and DAGEngine.
+Tests for SourceRegistry, UnifiedMonitor, and DAGEngine.
 """
 
 import pytest
@@ -17,7 +17,6 @@ from openfinance.datacenter.collector.source import (
     CollectionRule,
     ConnectionConfig,
     AuthConfig,
-    SourceHealth,
     get_source_registry,
 )
 from openfinance.datacenter.observability.monitoring.unified_monitor import (
@@ -31,7 +30,6 @@ from openfinance.datacenter.observability.monitoring.unified_monitor import (
     TaskExecutionRecord,
     CollectionResultRecord,
     get_unified_monitor,
-    create_default_alert_rules,
 )
 from openfinance.datacenter.task.dag_engine import (
     DAGEngine,
@@ -46,175 +44,106 @@ from openfinance.datacenter.task.dag_engine import (
 )
 
 
-class TestSourceConfigManager:
-    """Tests for SourceConfigManager class."""
+class TestSourceRegistry:
+    """Tests for SourceRegistry class."""
 
     @pytest.fixture
-    def manager(self):
-        return SourceConfigManager()
+    def registry(self):
+        return SourceRegistry()
 
     @pytest.fixture
     def sample_config(self):
         return SourceConfig(
             source_id="test_source_1",
-            source_name="Test API Source",
+            name="Test API Source",
             source_type=SourceType.API,
-            api_url="https://api.example.com",
-            rate_limit=100,
-            timeout_seconds=30.0,
+            connection=ConnectionConfig(base_url="https://api.example.com"),
         )
 
-    @pytest.mark.asyncio
-    async def test_save_source_config(self, manager, sample_config):
-        source_id = await manager.save_source_config(sample_config)
-        assert source_id == "test_source_1"
+    def test_register_source(self, registry, sample_config):
+        registry.register_source(sample_config)
         
-        config = await manager.get_source_config("test_source_1")
+        config = registry.get_source("test_source_1")
         assert config is not None
-        assert config.source_name == "Test API Source"
+        assert config.name == "Test API Source"
         assert config.source_type == SourceType.API
 
-    @pytest.mark.asyncio
-    async def test_get_source_config_not_found(self, manager):
-        config = await manager.get_source_config("nonexistent")
+    def test_get_source_not_found(self, registry):
+        config = registry.get_source("nonexistent")
         assert config is None
 
-    @pytest.mark.asyncio
-    async def test_delete_source_config(self, manager, sample_config):
-        await manager.save_source_config(sample_config)
+    def test_unregister_source(self, registry, sample_config):
+        registry.register_source(sample_config)
         
-        result = await manager.delete_source_config("test_source_1")
+        result = registry.unregister_source("test_source_1")
         assert result is True
         
-        config = await manager.get_source_config("test_source_1")
+        config = registry.get_source("test_source_1")
         assert config is None
 
-    @pytest.mark.asyncio
-    async def test_delete_source_config_not_found(self, manager):
-        result = await manager.delete_source_config("nonexistent")
+    def test_unregister_source_not_found(self, registry):
+        result = registry.unregister_source("nonexistent")
         assert result is False
 
-    @pytest.mark.asyncio
-    async def test_list_sources(self, manager):
+    def test_get_sources(self, registry):
         config1 = SourceConfig(
             source_id="source_1",
-            source_name="Source 1",
+            name="Source 1",
             source_type=SourceType.API,
         )
         config2 = SourceConfig(
             source_id="source_2",
-            source_name="Source 2",
+            name="Source 2",
             source_type=SourceType.DATABASE,
         )
         config3 = SourceConfig(
             source_id="source_3",
-            source_name="Source 3",
+            name="Source 3",
             source_type=SourceType.API,
             enabled=False,
         )
         
-        await manager.save_source_config(config1)
-        await manager.save_source_config(config2)
-        await manager.save_source_config(config3)
+        registry.register_source(config1)
+        registry.register_source(config2)
+        registry.register_source(config3)
         
-        all_sources = await manager.list_sources()
+        all_sources = registry.get_sources()
         assert len(all_sources) == 3
         
-        api_sources = await manager.list_sources(source_type=SourceType.API)
+        api_sources = registry.get_sources(source_type=SourceType.API)
         assert len(api_sources) == 2
         
-        enabled_sources = await manager.list_sources(enabled_only=True)
+        enabled_sources = registry.get_sources(enabled_only=True)
         assert len(enabled_sources) == 2
 
-    @pytest.mark.asyncio
-    async def test_test_connection_source_not_found(self, manager):
-        result = await manager.test_connection("nonexistent")
-        assert result.success is False
-        assert result.error_message == "Source not found"
-
-    @pytest.mark.asyncio
-    async def test_test_api_connection_success(self, manager):
-        config = SourceConfig(
-            source_id="api_test",
-            source_name="API Test",
-            source_type=SourceType.API,
-            api_url="https://httpbin.org/status/200",
-            timeout_seconds=5.0,
-        )
-        await manager.save_source_config(config)
-        
-        with patch("aiohttp.ClientSession") as mock_session:
-            mock_response = AsyncMock()
-            mock_response.status = 200
-            mock_response.__aenter__.return_value = mock_response
-            
-            mock_get = AsyncMock()
-            mock_get.__aenter__.return_value = mock_response
-            
-            mock_session_instance = MagicMock()
-            mock_session_instance.get.return_value = mock_get
-            mock_session_instance.__aenter__.return_value = mock_session_instance
-            
-            mock_session.return_value = mock_session_instance
-            
-            result = await manager.test_connection("api_test")
-            assert result.success is True
-
-    @pytest.mark.asyncio
-    async def test_get_source_health(self, manager, sample_config):
-        await manager.save_source_config(sample_config)
-        
-        health = await manager.get_source_health("test_source_1")
-        assert health is None
-        
-        await manager._update_health("test_source_1", True)
-        health = await manager.get_source_health("test_source_1")
-        assert health is not None
-        assert health.status == SourceStatus.ACTIVE
-        assert health.total_requests == 1
-        assert health.successful_requests == 1
-
-    @pytest.mark.asyncio
-    async def test_health_status_changes_on_failures(self, manager, sample_config):
-        await manager.save_source_config(sample_config)
-        
-        for _ in range(3):
-            await manager._update_health("test_source_1", False, "Test error")
-        
-        health = await manager.get_source_health("test_source_1")
-        assert health.status == SourceStatus.ERROR
-        assert health.consecutive_failures == 3
-
-    @pytest.mark.asyncio
-    async def test_collection_rule_crud(self, manager):
+    def test_collection_rule_crud(self, registry):
         rule = CollectionRule(
             rule_id="rule_1",
-            rule_name="Test Rule",
+            name="Test Rule",
             source_id="test_source",
             data_type="stock_quote",
             params={"symbol": "600000"},
         )
         
-        rule_id = await manager.save_collection_rule(rule)
-        assert rule_id == "rule_1"
+        registry.register_rule(rule)
         
-        retrieved = await manager.get_collection_rule("rule_1")
+        retrieved = registry.get_rule("rule_1")
         assert retrieved is not None
-        assert retrieved.rule_name == "Test Rule"
+        assert retrieved.name == "Test Rule"
         
-        rules = await manager.get_rules_for_source("test_source")
+        rules = registry.get_rules_for_source("test_source")
         assert len(rules) == 1
         
-        result = await manager.delete_collection_rule("rule_1")
+        result = registry.unregister_rule("rule_1")
         assert result is True
         
-        retrieved = await manager.get_collection_rule("rule_1")
+        retrieved = registry.get_rule("rule_1")
         assert retrieved is None
 
-    def test_get_source_config_manager_singleton(self):
-        manager1 = get_source_config_manager()
-        manager2 = get_source_config_manager()
-        assert manager1 is manager2
+    def test_get_source_registry_singleton(self):
+        registry1 = get_source_registry()
+        registry2 = get_source_registry()
+        assert registry1 is registry2
 
 
 class TestSourceConfig:
@@ -223,9 +152,9 @@ class TestSourceConfig:
     def test_source_config_creation(self):
         config = SourceConfig(
             source_id="test",
-            source_name="Test",
+            name="Test",
             source_type=SourceType.API,
-            api_url="https://api.example.com",
+            connection=ConnectionConfig(base_url="https://api.example.com"),
         )
         assert config.source_id == "test"
         assert config.enabled is True
@@ -234,11 +163,14 @@ class TestSourceConfig:
     def test_source_config_with_connection_params(self):
         config = SourceConfig(
             source_id="test",
-            source_name="Test",
-            connection_params={"host": "localhost", "port": 5432},
+            name="Test",
+            connection=ConnectionConfig(
+                base_url="https://api.example.com",
+                timeout=60.0,
+            ),
         )
-        assert config.connection_params["host"] == "localhost"
-        assert config.connection_params["port"] == 5432
+        assert config.connection.base_url == "https://api.example.com"
+        assert config.connection.timeout == 60.0
 
 
 class TestCollectionRule:
@@ -247,7 +179,7 @@ class TestCollectionRule:
     def test_collection_rule_creation(self):
         rule = CollectionRule(
             rule_id="rule_1",
-            rule_name="Stock Quote Collection",
+            name="Stock Quote Collection",
             source_id="tushare",
             data_type="stock_quote",
             params={"ts_code": "600000.SH"},
@@ -527,13 +459,6 @@ class TestUnifiedMonitor:
         m1 = get_unified_monitor()
         m2 = get_unified_monitor()
         assert m1 is m2
-
-    def test_create_default_alert_rules(self):
-        rules = create_default_alert_rules()
-        assert len(rules) == 3
-        assert any(r.rule_id == "high_error_rate" for r in rules)
-        assert any(r.rule_id == "slow_task" for r in rules)
-        assert any(r.rule_id == "low_quality" for r in rules)
 
 
 class TestDAG:

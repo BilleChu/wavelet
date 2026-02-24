@@ -1,41 +1,33 @@
 """
 ADS-ORM Model Mappings.
 
-Registers all ADS models with their corresponding ORM models.
-This is the central configuration for ADS <-> ORM transformations.
+通过 YAML 配置自动加载所有模型映射关系。
+字段映射通过 ADS 模型的 Field(alias=...) 处理。
 
 Usage:
-    from openfinance.datacenter.models.mappings import register_all_mappings
-    
-    # Register all mappings at startup
-    register_all_mappings()
+    from openfinance.datacenter.models.mappings import init_registry
+    init_registry()
 """
 
-from openfinance.datacenter.models.analytical import (
+from pathlib import Path
+
+from openfinance.datacenter.models.analytical import ADSModelRegistry
+from openfinance.datacenter.models.analytical.market import (
     ADSKLineModel,
     ADSMoneyFlowModel,
     ADSOptionQuoteModel,
     ADSFutureQuoteModel,
     ADSStockBasicModel,
+)
+from openfinance.datacenter.models.analytical.financial import (
     ADSFinancialIndicatorModel,
     ADSBalanceSheetModel,
     ADSIncomeStatementModel,
     ADSCashFlowModel,
-    ADSShareholderModel,
-    ADSShareholderChangeModel,
-    ADSInsiderTradingModel,
-    ADSMarketSentimentModel,
-    ADSNewsModel,
-    ADSStockSentimentModel,
-    ADSMacroEconomicModel,
-    ADSInterestRateModel,
-    ADSExchangeRateModel,
-    ADSFactorModel,
-    ADSSignalModel,
-    ADSBacktestResultModel,
-    ADSMetaModel,
-    ADSFieldMetaModel,
 )
+from openfinance.datacenter.models.analytical.quant import ADSFactorModel
+from openfinance.datacenter.models.analytical.sentiment import ADSNewsModel
+from openfinance.datacenter.models.analytical.macro import ADSMacroEconomicModel
 
 from openfinance.datacenter.models.orm import (
     StockDailyQuoteModel,
@@ -47,139 +39,70 @@ from openfinance.datacenter.models.orm import (
     OptionQuoteModel,
     FutureQuoteModel,
     StockBasicModel,
+    IncomeStatementModel,
+    BalanceSheetModel,
+    CashFlowModel,
 )
 
-from openfinance.datacenter.models.framework.transformer import register_ads_orm_mapping
+from openfinance.datacenter.models.analytical.base import DataCategory
+
+
+_CONFIG_PATH = Path(__file__).parent / "config" / "data_types.yaml"
+
+_MANUAL_REGISTRATIONS: dict[str, tuple[type, type, DataCategory, str]] = {
+    "kline": (ADSKLineModel, StockDailyQuoteModel, DataCategory.MARKET, "股票K线数据"),
+    "money_flow": (ADSMoneyFlowModel, StockMoneyFlowModel, DataCategory.MARKET, "资金流向数据"),
+    "option_quote": (ADSOptionQuoteModel, OptionQuoteModel, DataCategory.MARKET, "期权行情数据"),
+    "future_quote": (ADSFutureQuoteModel, FutureQuoteModel, DataCategory.MARKET, "期货行情数据"),
+    "stock_basic": (ADSStockBasicModel, StockBasicModel, DataCategory.MARKET, "股票基本信息"),
+    "financial_indicator": (ADSFinancialIndicatorModel, StockFinancialIndicatorModel, DataCategory.FINANCIAL, "财务指标数据"),
+    "balance_sheet": (ADSBalanceSheetModel, BalanceSheetModel, DataCategory.FINANCIAL, "资产负债表"),
+    "income_statement": (ADSIncomeStatementModel, IncomeStatementModel, DataCategory.FINANCIAL, "利润表"),
+    "cash_flow": (ADSCashFlowModel, CashFlowModel, DataCategory.FINANCIAL, "现金流量表"),
+    "factor": (ADSFactorModel, FactorDataModel, DataCategory.QUANT, "因子数据"),
+    "news": (ADSNewsModel, NewsModel, DataCategory.SENTIMENT, "新闻数据"),
+    "macro_economic": (ADSMacroEconomicModel, MacroEconomicModel, DataCategory.MACRO, "宏观经济数据"),
+}
+
+
+def init_registry(use_yaml: bool = True) -> None:
+    """
+    初始化模型注册中心。
+    
+    Args:
+        use_yaml: 是否从 YAML 配置加载（默认 True）
+    """
+    registry = ADSModelRegistry.get_instance()
+    
+    if use_yaml and _CONFIG_PATH.exists():
+        registry.load_all_from_yaml(str(_CONFIG_PATH))
+    
+    for model_id, (ads_model, orm_model, category, description) in _MANUAL_REGISTRATIONS.items():
+        registry.register(
+            model_id=model_id,
+            category=category,
+            model_class=ads_model,
+            orm_model=orm_model,
+            description=description,
+        )
 
 
 def register_all_mappings() -> None:
-    """Register all ADS-ORM mappings."""
-    
-    register_ads_orm_mapping(
-        ads_model=ADSKLineModel,
-        orm_model=StockDailyQuoteModel,
-        model_id="kline",
-        category="market",
-        field_mappings={
-            "turnover_rate": "turnover_rate",
-            "collected_at": "updated_at",
-        },
-    )
-    
-    register_ads_orm_mapping(
-        ads_model=ADSMoneyFlowModel,
-        orm_model=StockMoneyFlowModel,
-        model_id="money_flow",
-        category="market",
-        field_mappings={},
-    )
-    
-    register_ads_orm_mapping(
-        ads_model=ADSOptionQuoteModel,
-        orm_model=OptionQuoteModel,
-        model_id="option_quote",
-        category="market",
-        field_mappings={},
-    )
-    
-    register_ads_orm_mapping(
-        ads_model=ADSFutureQuoteModel,
-        orm_model=FutureQuoteModel,
-        model_id="future_quote",
-        category="market",
-        field_mappings={},
-    )
-    
-    register_ads_orm_mapping(
-        ads_model=ADSStockBasicModel,
-        orm_model=StockBasicModel,
-        model_id="stock_basic",
-        category="market",
-        field_mappings={},
-    )
-    
-    register_ads_orm_mapping(
-        ads_model=ADSFinancialIndicatorModel,
-        orm_model=StockFinancialIndicatorModel,
-        model_id="financial_indicator",
-        category="financial",
-        field_mappings={},
-    )
-    
-    register_ads_orm_mapping(
-        ads_model=ADSFactorModel,
-        orm_model=FactorDataModel,
-        model_id="factor",
-        category="quant",
-        field_mappings={
-            "factor_category": "factor_type",
-            "factor_value": "value",
-            "factor_rank": "value_rank",
-            "factor_percentile": "value_percentile",
-            "collected_at": "calculated_at",
-        },
-    )
-    
-    register_ads_orm_mapping(
-        ads_model=ADSNewsModel,
-        orm_model=NewsModel,
-        model_id="news",
-        category="sentiment",
-        field_mappings={},
-    )
-    
-    register_ads_orm_mapping(
-        ads_model=ADSMacroEconomicModel,
-        orm_model=MacroEconomicModel,
-        model_id="macro_economic",
-        category="macro",
-        field_mappings={},
-    )
+    """注册所有 ADS-ORM 映射（兼容旧接口）。"""
+    init_registry()
 
 
-MAPPING_CONFIG: dict[str, dict[str, any]] = {
-    "kline": {
-        "ads_model": ADSKLineModel,
-        "orm_model": "StockDailyQuoteModel",
-        "category": "market",
-        "field_mappings": {
-            "turnover_rate": "turnover_rate",
-            "collected_at": "updated_at",
-        },
-    },
-    "money_flow": {
-        "ads_model": ADSMoneyFlowModel,
-        "orm_model": "StockMoneyFlowModel",
-        "category": "market",
-        "field_mappings": {},
-    },
-    "financial_indicator": {
-        "ads_model": ADSFinancialIndicatorModel,
-        "orm_model": "StockFinancialIndicatorModel",
-        "category": "financial",
-        "field_mappings": {},
-    },
-    "factor": {
-        "ads_model": ADSFactorModel,
-        "orm_model": "FactorDataModel",
-        "category": "quant",
-        "field_mappings": {
-            "factor_category": "factor_type",
-            "factor_value": "value",
-            "factor_rank": "value_rank",
-            "factor_percentile": "value_percentile",
-        },
-    },
-    "news": {
-        "ads_model": ADSNewsModel,
-        "orm_model": "NewsModel",
-        "category": "sentiment",
-        "field_mappings": {},
-    },
-    "macro_economic": {
-        "ads_model": ADSMacroEconomicModel,
-        "orm_model": "MacroEconomicModel",
-        "category": "macro",
-        "field_mappings": {},
-    },
+MAPPING_CONFIG: dict[str, dict[str, str]] = {
+    "kline": {"orm_model": "StockDailyQuoteModel", "category": "market"},
+    "money_flow": {"orm_model": "StockMoneyFlowModel", "category": "market"},
+    "option_quote": {"orm_model": "OptionQuoteModel", "category": "market"},
+    "future_quote": {"orm_model": "FutureQuoteModel", "category": "market"},
+    "stock_basic": {"orm_model": "StockBasicModel", "category": "market"},
+    "financial_indicator": {"orm_model": "StockFinancialIndicatorModel", "category": "financial"},
+    "balance_sheet": {"orm_model": "BalanceSheetModel", "category": "financial"},
+    "income_statement": {"orm_model": "IncomeStatementModel", "category": "financial"},
+    "cash_flow": {"orm_model": "CashFlowModel", "category": "financial"},
+    "factor": {"orm_model": "FactorDataModel", "category": "quant"},
+    "news": {"orm_model": "NewsModel", "category": "sentiment"},
+    "macro_economic": {"orm_model": "MacroEconomicModel", "category": "macro"},
 }

@@ -6,7 +6,7 @@ See: domain/metadata/config/entity_types.yaml and relation_types.yaml
 """
 
 from datetime import datetime
-from typing import Any, Literal
+from typing import Any, Literal, Optional
 
 from sqlalchemy import (
     ARRAY,
@@ -21,6 +21,7 @@ from sqlalchemy import (
     Index,
     Date,
     Integer,
+    Numeric,
 )
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -706,3 +707,129 @@ class EventModel(Base):
     updated_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow
     )
+
+
+class IncomeStatementModel(Base):
+    """Income statement model - unified with ADS naming."""
+
+    __tablename__ = "income_statement"
+    __table_args__ = {"schema": "openfinance"}
+
+    code: Mapped[str] = mapped_column(String(10), primary_key=True)
+    report_date: Mapped[datetime] = mapped_column(Date, primary_key=True)
+    report_type: Mapped[str] = mapped_column(String(10), default="annual")
+    
+    total_revenue: Mapped[Optional[DECIMAL(20, 8)]] = mapped_column(Numeric(20, 8), nullable=True)
+    operating_revenue: Mapped[Optional[DECIMAL(20, 8)]] = mapped_column(Numeric(20, 8), nullable=True)
+    other_revenue: Mapped[Optional[DECIMAL(20, 8)]] = mapped_column(Numeric(20, 8), nullable=True)
+    
+    total_operating_cost: Mapped[Optional[DECIMAL(20, 8)]] = mapped_column(Numeric(20, 8), nullable=True)
+    cost_of_goods_sold: Mapped[Optional[DECIMAL(20, 8)]] = mapped_column(Numeric(20, 8), nullable=True)
+    selling_expenses: Mapped[Optional[DECIMAL(20, 8)]] = mapped_column(Numeric(20, 8), nullable=True)
+    admin_expenses: Mapped[Optional[DECIMAL(20, 8)]] = mapped_column(Numeric(20, 8), nullable=True)
+    rd_expenses: Mapped[Optional[DECIMAL(20, 8)]] = mapped_column(Numeric(20, 8), nullable=True)
+    finance_expenses: Mapped[Optional[DECIMAL(20, 8)]] = mapped_column(Numeric(20, 8), nullable=True)
+    
+    operating_profit: Mapped[Optional[DECIMAL(20, 8)]] = mapped_column(Numeric(20, 8), nullable=True)
+    total_profit: Mapped[Optional[DECIMAL(20, 8)]] = mapped_column(Numeric(20, 8), nullable=True)
+    net_profit: Mapped[Optional[DECIMAL(20, 8)]] = mapped_column(Numeric(20, 8), nullable=True)
+    net_profit_attr_parent: Mapped[Optional[DECIMAL(20, 8)]] = mapped_column(Numeric(20, 8), nullable=True)
+    net_profit_attr_minority: Mapped[Optional[DECIMAL(20, 8)]] = mapped_column(Numeric(20, 8), nullable=True)
+    
+    income_tax: Mapped[Optional[DECIMAL(20, 8)]] = mapped_column(Numeric(20, 8), nullable=True)
+    interest_expense: Mapped[Optional[DECIMAL(20, 8)]] = mapped_column(Numeric(20, 8), nullable=True)
+    
+    basic_eps: Mapped[Optional[DECIMAL(10, 4)]] = mapped_column(Numeric(10, 4), nullable=True)
+    diluted_eps: Mapped[Optional[DECIMAL(10, 4)]] = mapped_column(Numeric(10, 4), nullable=True)
+    
+    collected_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), default=datetime.utcnow)
+
+
+class BalanceSheetModel(Base):
+    """Balance sheet model - unified with ADS naming."""
+
+    __tablename__ = "balance_sheet"
+    __table_args__ = {"schema": "openfinance"}
+
+    code: Mapped[str] = mapped_column(String(10), primary_key=True)
+    report_date: Mapped[datetime] = mapped_column(Date, primary_key=True)
+    report_type: Mapped[str] = mapped_column(String(10), default="annual")
+    
+    total_assets: Mapped[Optional[DECIMAL(20, 8)]] = mapped_column(Numeric(20, 8), nullable=True)
+    total_current_assets: Mapped[Optional[DECIMAL(20, 8)]] = mapped_column(Numeric(20, 8), nullable=True)
+    total_non_current_assets: Mapped[Optional[DECIMAL(20, 8)]] = mapped_column(Numeric(20, 8), nullable=True)
+    
+    cash: Mapped[Optional[DECIMAL(20, 8)]] = mapped_column(Numeric(20, 8), nullable=True)
+    accounts_receivable: Mapped[Optional[DECIMAL(20, 8)]] = mapped_column(Numeric(20, 8), nullable=True)
+    inventory: Mapped[Optional[DECIMAL(20, 8)]] = mapped_column(Numeric(20, 8), nullable=True)
+    fixed_assets: Mapped[Optional[DECIMAL(20, 8)]] = mapped_column(Numeric(20, 8), nullable=True)
+    intangible_assets: Mapped[Optional[DECIMAL(20, 8)]] = mapped_column(Numeric(20, 8), nullable=True)
+    
+    total_liabilities: Mapped[Optional[DECIMAL(20, 8)]] = mapped_column(Numeric(20, 8), nullable=True)
+    total_current_liabilities: Mapped[Optional[DECIMAL(20, 8)]] = mapped_column(Numeric(20, 8), nullable=True)
+    total_non_current_liabilities: Mapped[Optional[DECIMAL(20, 8)]] = mapped_column(Numeric(20, 8), nullable=True)
+    
+    short_term_debt: Mapped[Optional[DECIMAL(20, 8)]] = mapped_column(Numeric(20, 8), nullable=True)
+    long_term_debt: Mapped[Optional[DECIMAL(20, 8)]] = mapped_column(Numeric(20, 8), nullable=True)
+    accounts_payable: Mapped[Optional[DECIMAL(20, 8)]] = mapped_column(Numeric(20, 8), nullable=True)
+    
+    total_equity: Mapped[Optional[DECIMAL(20, 8)]] = mapped_column(Numeric(20, 8), nullable=True)
+    paid_in_capital: Mapped[Optional[DECIMAL(20, 8)]] = mapped_column(Numeric(20, 8), nullable=True)
+    retained_earnings: Mapped[Optional[DECIMAL(20, 8)]] = mapped_column(Numeric(20, 8), nullable=True)
+    
+    collected_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), default=datetime.utcnow)
+
+
+class CashFlowModel(Base):
+    """Cash flow statement model - unified with ADS naming."""
+
+    __tablename__ = "cash_flow"
+    __table_args__ = {"schema": "openfinance"}
+
+    code: Mapped[str] = mapped_column(String(10), primary_key=True)
+    report_date: Mapped[datetime] = mapped_column(Date, primary_key=True)
+    report_type: Mapped[str] = mapped_column(String(10), default="annual")
+    
+    net_cash_from_operating: Mapped[Optional[DECIMAL(20, 8)]] = mapped_column(Numeric(20, 8), nullable=True)
+    net_cash_from_investing: Mapped[Optional[DECIMAL(20, 8)]] = mapped_column(Numeric(20, 8), nullable=True)
+    net_cash_from_financing: Mapped[Optional[DECIMAL(20, 8)]] = mapped_column(Numeric(20, 8), nullable=True)
+    
+    net_cash_increase: Mapped[Optional[DECIMAL(20, 8)]] = mapped_column(Numeric(20, 8), nullable=True)
+    cash_at_beginning: Mapped[Optional[DECIMAL(20, 8)]] = mapped_column(Numeric(20, 8), nullable=True)
+    cash_at_end: Mapped[Optional[DECIMAL(20, 8)]] = mapped_column(Numeric(20, 8), nullable=True)
+    
+    cash_received_from_sales: Mapped[Optional[DECIMAL(20, 8)]] = mapped_column(Numeric(20, 8), nullable=True)
+    cash_paid_for_goods: Mapped[Optional[DECIMAL(20, 8)]] = mapped_column(Numeric(20, 8), nullable=True)
+    cash_paid_to_employees: Mapped[Optional[DECIMAL(20, 8)]] = mapped_column(Numeric(20, 8), nullable=True)
+    taxes_paid: Mapped[Optional[DECIMAL(20, 8)]] = mapped_column(Numeric(20, 8), nullable=True)
+    
+    cash_paid_for_assets: Mapped[Optional[DECIMAL(20, 8)]] = mapped_column(Numeric(20, 8), nullable=True)
+    cash_received_from_assets: Mapped[Optional[DECIMAL(20, 8)]] = mapped_column(Numeric(20, 8), nullable=True)
+    cash_paid_for_investments: Mapped[Optional[DECIMAL(20, 8)]] = mapped_column(Numeric(20, 8), nullable=True)
+    
+    cash_received_from_financing: Mapped[Optional[DECIMAL(20, 8)]] = mapped_column(Numeric(20, 8), nullable=True)
+    cash_paid_for_debt: Mapped[Optional[DECIMAL(20, 8)]] = mapped_column(Numeric(20, 8), nullable=True)
+    dividends_paid: Mapped[Optional[DECIMAL(20, 8)]] = mapped_column(Numeric(20, 8), nullable=True)
+    
+    free_cash_flow: Mapped[Optional[DECIMAL(20, 8)]] = mapped_column(Numeric(20, 8), nullable=True)
+    
+    collected_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), default=datetime.utcnow)
+
+
+class DividendDataModel(Base):
+    """Dividend data model."""
+
+    __tablename__ = "dividend_data"
+    __table_args__ = {"schema": "openfinance"}
+
+    code: Mapped[str] = mapped_column(String(10), primary_key=True)
+    report_year: Mapped[str] = mapped_column(String(4), primary_key=True)
+    
+    ex_date: Mapped[Optional[datetime]] = mapped_column(Date, nullable=True)
+    dividend_per_share: Mapped[Optional[DECIMAL(10, 4)]] = mapped_column(Numeric(10, 4), nullable=True)
+    bonus_per_share: Mapped[Optional[DECIMAL(10, 4)]] = mapped_column(Numeric(10, 4), nullable=True)
+    transfer_per_share: Mapped[Optional[DECIMAL(10, 4)]] = mapped_column(Numeric(10, 4), nullable=True)
+    total_dividend: Mapped[Optional[DECIMAL(20, 8)]] = mapped_column(Numeric(20, 8), nullable=True)
+    dividend_yield: Mapped[Optional[DECIMAL(10, 4)]] = mapped_column(Numeric(10, 4), nullable=True)
+    
+    collected_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), default=datetime.utcnow)

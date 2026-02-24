@@ -17,7 +17,7 @@ from openfinance.agents.tools.builtin import (
 )
 from openfinance.agents.tools.base import Tool
 from openfinance.agents.tools.registry import ToolRegistry
-from openfinance.agents.utils.web_fetch import (
+from openfinance.utils.web_fetch import (
     web_fetch,
     web_fetch_simple,
     FetchMethod,

@@ -192,30 +192,265 @@ def build_factor_prompt(description: str, name: Optional[str] = None, context: O
 
 因子描述：{description}
 
-请生成完整的Python因子代码，使用标准的数据模型 ADSKLineModel。
+请生成完整的Python因子代码，根据因子类型选择合适的数据模型。因子可以使用单一数据源，也可以组合多个数据源。
 
 ## 数据模型说明
 
-所有因子使用统一的 ADSKLineModel 数据模型：
+### 1. 行情数据模型 ADSKLineModel（技术因子）
 
 ```python
 from openfinance.datacenter.models.analytical import ADSKLineModel
 
 class ADSKLineModel:
-    code: str           # 股票代码（6位）
-    trade_date: date    # 交易日期
-    open: float         # 开盘价
-    high: float         # 最高价
-    low: float          # 最低价
-    close: float        # 收盘价
-    volume: int         # 成交量
-    amount: float       # 成交额
-    pre_close: float    # 前收盘价
-    turnover: float     # 换手率
-    amplitude: float    # 振幅
-    change: float       # 涨跌额
-    change_pct: float   # 涨跌幅
+    code: str               # 股票代码（6位）
+    trade_date: date        # 交易日期
+    open: float             # 开盘价
+    high: float             # 最高价
+    low: float              # 最低价
+    close: float            # 收盘价
+    volume: int             # 成交量
+    amount: float           # 成交额
+    pre_close: float        # 前收盘价
+    change: float           # 涨跌额
+    change_pct: float       # 涨跌幅
+    turnover_rate: float    # 换手率
+    amplitude: float        # 振幅
+    market_cap: float       # 总市值
+    circulating_market_cap: float  # 流通市值
 ```
+
+### 2. 资金流向数据模型 ADSMoneyFlowModel（资金流因子）
+
+```python
+from openfinance.datacenter.models.analytical import ADSMoneyFlowModel
+
+class ADSMoneyFlowModel:
+    code: str               # 股票代码
+    trade_date: date        # 交易日期
+    main_net_inflow: float  # 主力净流入
+    main_net_inflow_pct: float  # 主力净流入占比
+    super_large_net_inflow: float  # 超大单净流入
+    large_net_inflow: float    # 大单净流入
+    medium_net_inflow: float   # 中单净流入
+    small_net_inflow: float    # 小单净流入
+    north_net_inflow: float    # 北向资金净流入
+```
+
+### 3. 财务指标数据模型 ADSFinancialIndicatorModel（基本面因子）
+
+```python
+from openfinance.datacenter.models.analytical import ADSFinancialIndicatorModel
+
+class ADSFinancialIndicatorModel:
+    code: str           # 股票代码
+    report_date: date   # 报告期
+    
+    # 盈利能力指标
+    roe: float          # 净资产收益率
+    roa: float          # 总资产收益率
+    gross_margin: float # 毛利率
+    net_margin: float   # 净利率
+    operating_margin: float  # 营业利润率
+    
+    # 每股指标
+    eps: float          # 每股收益
+    bps: float          # 每股净资产
+    
+    # 偿债能力指标
+    debt_ratio: float   # 资产负债率
+    current_ratio: float # 流动比率
+    quick_ratio: float  # 速动比率
+    
+    # 成长能力指标
+    revenue_yoy: float      # 营收同比增长
+    net_profit_yoy: float   # 净利润同比增长
+    operating_profit_yoy: float  # 营业利润同比增长
+    
+    # 规模指标
+    revenue: float          # 营业收入
+    net_profit: float       # 净利润
+    operating_profit: float # 营业利润
+    total_assets: float     # 总资产
+    total_equity: float     # 净资产
+```
+
+### 4. 利润表数据模型 ADSIncomeStatementModel（收入利润因子）
+
+```python
+from openfinance.datacenter.models.analytical import ADSIncomeStatementModel
+
+class ADSIncomeStatementModel:
+    code: str               # 股票代码
+    report_date: date       # 报告期
+    total_revenue: float    # 营业总收入
+    operating_revenue: float    # 营业收入
+    cost_of_goods_sold: float   # 营业成本
+    selling_expenses: float     # 销售费用
+    admin_expenses: float       # 管理费用
+    rd_expenses: float          # 研发费用
+    finance_expenses: float     # 财务费用
+    operating_profit: float     # 营业利润
+    net_profit: float           # 净利润
+    basic_eps: float            # 基本每股收益
+```
+
+### 5. 现金流数据模型 ADSCashFlowModel（现金流因子）
+
+```python
+from openfinance.datacenter.models.analytical import ADSCashFlowModel
+
+class ADSCashFlowModel:
+    code: str               # 股票代码
+    report_date: date       # 报告期
+    net_cash_from_operating: float   # 经营活动现金流净额
+    net_cash_from_investing: float   # 投资活动现金流净额
+    net_cash_from_financing: float   # 筹资活动现金流净额
+    free_cash_flow: float            # 自由现金流
+    dividends_paid: float            # 分红支付的现金
+    cash_received_from_sales: float  # 销售商品收到的现金
+```
+
+### 6. 资产负债表数据模型 ADSBalanceSheetModel（资产负债因子）
+
+```python
+from openfinance.datacenter.models.analytical import ADSBalanceSheetModel
+
+class ADSBalanceSheetModel:
+    code: str               # 股票代码
+    report_date: date       # 报告期
+    total_assets: float         # 总资产
+    total_current_assets: float # 流动资产合计
+    cash: float                 # 货币资金
+    accounts_receivable: float  # 应收账款
+    inventory: float            # 存货
+    fixed_assets: float         # 固定资产
+    intangible_assets: float    # 无形资产
+    total_liabilities: float    # 负债合计
+    total_equity: float         # 所有者权益合计
+    short_term_debt: float      # 短期借款
+    long_term_debt: float       # 长期借款
+```
+
+### 7. 股东数据模型 ADSShareholderModel（股权因子）
+
+```python
+from openfinance.datacenter.models.analytical import ADSShareholderModel
+
+class ADSShareholderModel:
+    code: str               # 股票代码
+    report_date: date       # 报告期
+    shareholder_name: str       # 股东名称
+    shareholder_type: str       # 股东类型: individual/institution/government
+    shares_held: float          # 持股数量
+    shares_ratio: float         # 持股比例
+    shares_change: float        # 持股变动
+    is_actual_controller: bool  # 是否实际控制人
+    pledge_shares: float        # 质押股数
+    pledge_ratio: float         # 质押比例
+```
+
+### 8. 股票情绪数据模型 ADSStockSentimentModel（情绪因子）
+
+```python
+from openfinance.datacenter.models.analytical import ADSStockSentimentModel
+
+class ADSStockSentimentModel:
+    code: str               # 股票代码
+    trade_date: date        # 交易日期
+    news_count: int             # 相关新闻数量
+    positive_count: int         # 正面新闻数量
+    negative_count: int         # 负面新闻数量
+    overall_sentiment: float    # 综合情绪得分 [-1, 1]
+    sentiment_momentum: float   # 情绪动量
+    social_mentions: int        # 社交媒体提及数
+    social_sentiment: float     # 社交情绪得分
+    analyst_rating: str         # 分析师评级
+    target_price: float         # 目标价
+```
+
+### 9. 市场情绪数据模型 ADSMarketSentimentModel（市场情绪因子）
+
+```python
+from openfinance.datacenter.models.analytical import ADSMarketSentimentModel
+
+class ADSMarketSentimentModel:
+    trade_date: date            # 交易日期
+    market: str                 # 市场: sh/sz/all
+    advance_count: int          # 上涨家数
+    decline_count: int          # 下跌家数
+    limit_up_count: int         # 涨停家数
+    limit_down_count: int       # 跌停家数
+    bull_strength: float        # 多头强度 [-1, 1]
+    fear_greed_index: float     # 恐惧贪婪指数 [0, 100]
+    north_net_inflow: float     # 北向资金净流入
+    margin_balance: float       # 融资余额
+```
+
+### 10. 宏观经济数据模型 ADSMacroEconomicModel（宏观因子）
+
+```python
+from openfinance.datacenter.models.analytical import ADSMacroEconomicModel
+
+class ADSMacroEconomicModel:
+    trade_date: date            # 日期
+    indicator_id: str           # 指标ID
+    indicator_name: str         # 指标名称
+    indicator_type: str         # 指标类型: leading/coincident/lagging
+    country: str                # 国家代码
+    value: float                # 指标值
+    value_yoy: float            # 同比变化
+    value_mom: float            # 环比变化
+    consensus: float            # 市场一致预期
+```
+
+## 多数据源因子示例
+
+当因子需要组合多个数据源时，函数签名应包含多个参数：
+
+```python
+from typing import Optional, List
+from openfinance.datacenter.models.analytical import (
+    ADSKLineModel,
+    ADSFinancialIndicatorModel,
+    ADSCashFlowModel,
+)
+
+def calculate_factor(
+    klines: List[ADSKLineModel],
+    financials: List[ADSFinancialIndicatorModel],
+    cash_flows: List[ADSCashFlowModel],
+    period: int = 8  # 季度数
+) -> Optional[float]:
+    '''
+    多数据源因子计算
+    
+    Args:
+        klines: 行情数据列表
+        financials: 财务指标列表
+        cash_flows: 现金流数据列表
+        period: 回看周期（季度）
+    
+    Returns:
+        float: 因子值
+    '''
+    # 数据验证
+    if not financials or len(financials) < period:
+        return None
+    if not cash_flows or len(cash_flows) < period:
+        return None
+    
+    # 计算逻辑...
+    return result
+```
+
+## 重要说明
+
+1. **分红相关因子**：使用 ADSCashFlowModel 的 `dividends_paid` 字段，或结合 ADSFinancialIndicatorModel 计算股息支付率(DPR)
+2. **利润率因子**：使用 ADSFinancialIndicatorModel 的 `net_margin`, `gross_margin`, `roe` 等
+3. **稳定性因子**：需要多期数据，计算标准差、变异系数等
+4. **资金流因子**：使用 ADSMoneyFlowModel 的主力资金流向数据
+5. **情绪因子**：使用 ADSStockSentimentModel 的情绪得分数据
+6. **多数据源因子**：可组合行情、财务、资金流等多个数据源
 
 ## 代码格式要求
 
@@ -224,36 +459,32 @@ class ADSKLineModel:
 ## 因子信息
 - 因子名称：xxx
 - 因子描述：xxx
-- 因子类型：xxx（technical/fundamental/sentiment/alternative）
-- 因子类别：xxx（momentum/value/quality/volatility/liquidity/growth/custom）
-- 回看周期：xxx天
+- 因子类型：xxx（technical/fundamental/sentiment/alternative/multi_source）
+- 因子类别：xxx（momentum/value/quality/volatility/liquidity/growth/flow/custom）
+- 回看周期：xxx（技术因子为天数，基本面因子为季度数）
+- 数据模型：xxx（列出所有使用的数据模型）
 
 ## 因子代码
 ```python
 import numpy as np
 from typing import Optional, List
-from openfinance.datacenter.models.analytical import ADSKLineModel
+# 根据因子类型导入合适的数据模型
+from openfinance.datacenter.models.analytical import ADSKLineModel  # 或其他模型
 
-def calculate_factor(klines: List[ADSKLineModel], period: int = 20) -> Optional[float]:
+def calculate_factor(data: List, period: int = 20) -> Optional[float]:
     '''
     因子计算函数
     
     Args:
-        klines: ADSKLineModel列表，按时间升序排列（最旧在前，最新在后）
-        period: 回看周期（天）
+        data: 数据列表，按时间升序排列（最旧在前，最新在后）
+        period: 回看周期
     
     Returns:
         float: 因子值，数据不足时返回None
     '''
     # 输入验证
-    if not klines or len(klines) < period + 1:
+    if not data or len(data) < period:
         return None
-    
-    # 从ADSKLineModel提取数据
-    close = np.array([k.close for k in klines])
-    high = np.array([k.high for k in klines])
-    low = np.array([k.low for k in klines])
-    volume = np.array([k.volume for k in klines])
     
     # 计算逻辑
     # ...
@@ -561,18 +792,45 @@ async def save_factor(request: FactorSaveRequest):
         }
         category_enum = category_map.get(request.category, FactorCategory.CUSTOM)
         
+        calculation_logic = extract_calculation_logic(request.code)
+        
+        data_models = detect_data_models(request.code)
+        required_fields = get_required_fields(data_models)
+        
+        imports = "from openfinance.datacenter.models.analytical import ADSKLineModel\n"
+        if data_models:
+            imports = f"from openfinance.datacenter.models.analytical import {', '.join(data_models)}\n"
+        
+        calculate_params = "klines: List[ADSKLineModel]"
+        if "ADSFinancialIndicatorModel" in data_models:
+            calculate_params += ",\n        financials: List[ADSFinancialIndicatorModel] = None"
+        if "ADSCashFlowModel" in data_models:
+            calculate_params += ",\n        cash_flows: List[ADSCashFlowModel] = None"
+        if "ADSMoneyFlowModel" in data_models:
+            calculate_params += ",\n        money_flows: List[ADSMoneyFlowModel] = None"
+        if "ADSBalanceSheetModel" in data_models:
+            calculate_params += ",\n        balance_sheets: List[ADSBalanceSheetModel] = None"
+        if "ADSIncomeStatementModel" in data_models:
+            calculate_params += ",\n        income_statements: List[ADSIncomeStatementModel] = None"
+        if "ADSShareholderModel" in data_models:
+            calculate_params += ",\n        shareholders: List[ADSShareholderModel] = None"
+        if "ADSStockSentimentModel" in data_models:
+            calculate_params += ",\n        sentiments: List[ADSStockSentimentModel] = None"
+        if "ADSMacroEconomicModel" in data_models:
+            calculate_params += ",\n        macro_data: List[ADSMacroEconomicModel] = None"
+        
         factor_code = f'''"""
 {request.name} - Custom Factor
 
 {request.description}
 
 Generated by AI Factor Creator
+Data Models: {', '.join(data_models) if data_models else 'ADSKLineModel'}
 """
 
 import numpy as np
 from typing import Optional, List
-from openfinance.datacenter.models.analytical import ADSKLineModel
-from openfinance.quant.factors.base import (
+{imports}from openfinance.quant.factors.base import (
     FactorBase,
     FactorMetadata,
     FactorType,
@@ -597,25 +855,14 @@ class {class_name}Factor(FactorBase):
             factor_type=FactorType.{factor_type_enum.name},
             category=FactorCategory.{category_enum.name},
             lookback_period={request.lookback_period},
-            required_fields=["close"],
+            required_fields={required_fields},
             tags={request.tags or []},
             author="user",
         )
     
-    def _calculate(self, klines: List[ADSKLineModel], **params) -> Optional[float]:
+    def _calculate(self, {calculate_params}, **params) -> Optional[float]:
         \'\'\'Calculate factor value.\'\'\'
-        if not klines or len(klines) < self.metadata.lookback_period:
-            return None
-        
-        close = np.array([k.close for k in klines])
-        period = params.get("period", self.metadata.lookback_period)
-        
-        # Calculate momentum
-        if len(close) < period:
-            return None
-        
-        momentum = (close[-1] / close[-period]) - 1.0
-        return float(momentum)
+{calculation_logic}
 '''
 
         with open(factor_file, "w", encoding="utf-8") as f:
@@ -645,6 +892,8 @@ class {class_name}Factor(FactorBase):
                 "DATABASE_URL",
                 "postgresql://openfinance:openfinance@localhost:5432/openfinance"
             )
+            if "+asyncpg" in db_url:
+                db_url = db_url.replace("+asyncpg", "")
             
             conn = await asyncpg.connect(db_url)
             
@@ -687,6 +936,58 @@ class {class_name}Factor(FactorBase):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+def detect_data_models(code: str) -> list[str]:
+    """Detect which data models are used in the factor code."""
+    models = []
+    model_patterns = {
+        "ADSKLineModel": ["klines", "close", "open", "high", "low", "volume", "ADSKLineModel"],
+        "ADSFinancialIndicatorModel": ["financial", "roe", "net_margin", "gross_margin", "eps", "ADSFinancialIndicatorModel"],
+        "ADSCashFlowModel": ["cash_flow", "dividends_paid", "free_cash_flow", "ADSCashFlowModel"],
+        "ADSMoneyFlowModel": ["money_flow", "main_net_inflow", "north_net_inflow", "ADSMoneyFlowModel"],
+        "ADSBalanceSheetModel": ["balance_sheet", "total_assets", "total_liabilities", "ADSBalanceSheetModel"],
+        "ADSIncomeStatementModel": ["income_statement", "total_revenue", "operating_profit", "ADSIncomeStatementModel"],
+        "ADSShareholderModel": ["shareholder", "shares_held", "shares_ratio", "ADSShareholderModel"],
+        "ADSStockSentimentModel": ["sentiment", "overall_sentiment", "news_count", "ADSStockSentimentModel"],
+        "ADSMacroEconomicModel": ["macro", "indicator", "gdp", "cpi", "ADSMacroEconomicModel"],
+    }
+    
+    code_lower = code.lower()
+    for model, keywords in model_patterns.items():
+        for keyword in keywords:
+            if keyword.lower() in code_lower:
+                if model not in models:
+                    models.append(model)
+                break
+    
+    if not models:
+        models = ["ADSKLineModel"]
+    
+    return models
+
+
+def get_required_fields(data_models: list[str]) -> list[str]:
+    """Get required fields based on data models."""
+    fields = []
+    
+    model_field_map = {
+        "ADSKLineModel": ["close"],
+        "ADSFinancialIndicatorModel": ["financial_data"],
+        "ADSCashFlowModel": ["cash_flow"],
+        "ADSMoneyFlowModel": ["money_flow"],
+        "ADSBalanceSheetModel": ["balance_sheet"],
+        "ADSIncomeStatementModel": ["income_statement"],
+        "ADSShareholderModel": ["shareholder"],
+        "ADSStockSentimentModel": ["sentiment"],
+        "ADSMacroEconomicModel": ["macro"],
+    }
+    
+    for model in data_models:
+        if model in model_field_map:
+            fields.extend(model_field_map[model])
+    
+    return fields if fields else ["close"]
+
+
 def extract_calculation_logic(code: str) -> str:
     """Extract and format calculation logic from generated code."""
     base_indent = "        "
@@ -696,28 +997,50 @@ def extract_calculation_logic(code: str) -> str:
         result_lines = []
         in_function = False
         function_indent = 0
+        function_body_start = 0
+        min_body_indent = float('inf')
         
-        for line in lines:
+        for i, line in enumerate(lines):
             stripped = line.strip()
             
-            if stripped.startswith('def ') and ('calculate' in stripped.lower() or 'factor' in stripped.lower()):
+            if stripped.startswith('def ') and 'calculate' in stripped.lower():
                 in_function = True
                 function_indent = len(line) - len(line.lstrip())
                 continue
             
-            if in_function and stripped:
+            if in_function:
+                if not stripped:
+                    continue
+                if stripped.startswith('#') and '"""' not in stripped and "'''" not in stripped:
+                    continue
+                if stripped.startswith('"""') or stripped.startswith("'''"):
+                    continue
+                
                 current_indent = len(line) - len(line.lstrip())
-                relative_indent = current_indent - function_indent
-                new_indent = base_indent + "    " * (relative_indent // 4)
-                result_lines.append(f"{new_indent}{stripped}")
+                if current_indent > function_indent:
+                    if current_indent < min_body_indent:
+                        min_body_indent = current_indent
+                        function_body_start = len(result_lines)
+                
+                result_lines.append((current_indent, stripped))
         
         if result_lines:
-            return '\n'.join(result_lines)
-    except Exception:
-        pass
+            formatted_lines = []
+            for original_indent, content in result_lines:
+                relative_indent = original_indent - min_body_indent
+                if relative_indent < 0:
+                    relative_indent = 0
+                new_indent = base_indent + "    " * (relative_indent // 4)
+                formatted_lines.append(f"{new_indent}{content}")
+            return '\n'.join(formatted_lines)
+    except Exception as e:
+        logger.warning(f"Failed to extract calculation logic: {e}")
     
     return '\n'.join([
-        f"{base_indent}# Default calculation: simple momentum",
+        f"{base_indent}if not klines or len(klines) < self.metadata.lookback_period:",
+        f"{base_indent}    return None",
+        f"{base_indent}close = np.array([k.close for k in klines])",
+        f"{base_indent}period = params.get('period', self.metadata.lookback_period)",
         f"{base_indent}if len(close) < period:",
         f"{base_indent}    return None",
         f"{base_indent}return float((close[-1] / close[-period]) - 1)",

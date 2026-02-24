@@ -1,15 +1,7 @@
 """
 Data Center System for OpenFinance.
 
-This module provides comprehensive data management including:
-- Collector: Multi-source data acquisition and cleaning
-- Models: ORM models, framework, and mappings
-- Observability: Quality checking, monitoring, lineage
-- Marketplace: Data service marketplace
-- Task: Task scheduling and execution
-- Core: Core utilities (config, conversion, HTTP client)
-
-Architecture:
+架构:
 ┌─────────────────────────────────────────────────────────────┐
 │                    Marketplace Layer                         │
 │         (Data Service Marketplace, Gateway)                 │
@@ -20,8 +12,11 @@ Architecture:
 │                    Observability Layer                       │
 │         (Quality, Monitoring, Lineage)                      │
 ├─────────────────────────────────────────────────────────────┤
-│                    Models Layer                              │
-│         (Analytical, ORM, Framework, Mappings)              │
+│                    ADS Models Layer                          │
+│         (ADSModelRegistry, Repository, ADS Models)          │
+├─────────────────────────────────────────────────────────────┤
+│                    ORM Models Layer                          │
+│         (SQLAlchemy Models, Mappings)                       │
 ├─────────────────────────────────────────────────────────────┤
 │                    Collector Layer                           │
 │         (Source, Core, Implementations)                     │
@@ -98,18 +93,25 @@ from openfinance.datacenter.models.analytical import (
     ADSMacroEconomicModel,
     ADSDataBatch,
     DataQuality as ADSDataQuality,
+    ADSModelRegistry,
+    ADSModelDefinition,
+    register_ads_model,
+    GenericADSRepository,
+    ADSKLineRepository,
+    ADSFactorRepository,
     get_model as get_ads_model,
 )
 
 from openfinance.datacenter.models import (
-    ModelRegistry,
-    ModelTransformer,
-    ADSORMTransformer,
-    register_ads_orm_mapping,
     register_all_mappings,
     Base,
     EntityModel,
     RelationModel,
+    StockDailyQuoteModel,
+    FactorDataModel,
+    IncomeStatementModel,
+    BalanceSheetModel,
+    CashFlowModel,
 )
 
 from openfinance.datacenter.task import (
@@ -184,15 +186,22 @@ __all__ = [
     "ADSMacroEconomicModel",
     "ADSDataBatch",
     "ADSDataQuality",
+    "ADSModelRegistry",
+    "ADSModelDefinition",
+    "register_ads_model",
+    "GenericADSRepository",
+    "ADSKLineRepository",
+    "ADSFactorRepository",
     "get_ads_model",
-    "ModelRegistry",
-    "ModelTransformer",
-    "ADSORMTransformer",
-    "register_ads_orm_mapping",
     "register_all_mappings",
     "Base",
     "EntityModel",
     "RelationModel",
+    "StockDailyQuoteModel",
+    "FactorDataModel",
+    "IncomeStatementModel",
+    "BalanceSheetModel",
+    "CashFlowModel",
     "TaskManager",
     "TaskDefinition",
     "TaskStatus",
