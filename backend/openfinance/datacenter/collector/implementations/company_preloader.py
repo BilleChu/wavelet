@@ -34,6 +34,15 @@ from openfinance.datacenter.models import (
 
 logger = get_logger(__name__)
 
+DEFAULT_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    "Accept": "application/json, text/plain, */*",
+    "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
+    "Accept-Encoding": "gzip, deflate, br",
+    "Connection": "keep-alive",
+    "Referer": "https://data.eastmoney.com/",
+}
+
 
 @dataclass
 class CompanyInfo:
@@ -112,8 +121,42 @@ class CompanyPreloader(BatchProcessor[CompanyInfo, CompanyProcessResult]):
     
     async def _get_session(self) -> aiohttp.ClientSession:
         if self._session is None or self._session.closed:
-            self._session = aiohttp.ClientSession()
+            timeout = aiohttp.ClientTimeout(total=30, connect=10)
+            connector = aiohttp.TCPConnector(limit=10, limit_per_host=5)
+            self._session = aiohttp.ClientSession(
+                headers=DEFAULT_HEADERS,
+                timeout=timeout,
+                connector=connector,
+            )
         return self._session
+    
+    async def _fetch_with_retry(
+        self,
+        url: str,
+        params: dict[str, Any],
+        max_retries: int = 3,
+        retry_delay: float = 1.0,
+    ) -> dict[str, Any]:
+        session = await self._get_session()
+        last_error = None
+        
+        for attempt in range(max_retries):
+            try:
+                async with session.get(url, params=params) as resp:
+                    if resp.status == 200:
+                        return await resp.json()
+                    else:
+                        last_error = f"HTTP {resp.status}"
+            except aiohttp.ClientError as e:
+                last_error = str(e)
+            except Exception as e:
+                last_error = str(e)
+            
+            if attempt < max_retries - 1:
+                await asyncio.sleep(retry_delay * (attempt + 1))
+        
+        logger.debug(f"Failed to fetch {url} after {max_retries} attempts: {last_error}")
+        return {}
     
     def get_item_id(self, item: CompanyInfo) -> str:
         return item.code
@@ -125,7 +168,6 @@ class CompanyPreloader(BatchProcessor[CompanyInfo, CompanyProcessResult]):
         Returns:
             List of CompanyInfo objects
         """
-        session = await self._get_session()
         companies: list[CompanyInfo] = []
         
         market_configs = [
@@ -149,8 +191,7 @@ class CompanyPreloader(BatchProcessor[CompanyInfo, CompanyProcessResult]):
             }
             
             try:
-                async with session.get(EASTMONEY_STOCK_LIST_URL, params=params) as resp:
-                    data = await resp.json()
+                data = await self._fetch_with_retry(EASTMONEY_STOCK_LIST_URL, params)
                     
                 if data.get("data") and data["data"].get("diff"):
                     for item in data["data"]["diff"]:
@@ -182,15 +223,13 @@ class CompanyPreloader(BatchProcessor[CompanyInfo, CompanyProcessResult]):
     
     async def fetch_company_detail(self, code: str) -> dict[str, Any]:
         """Fetch detailed company information."""
-        session = await self._get_session()
-        
         secid = ""
         if code.startswith("6"):
-            secid = f"1.{code}"
+            secid = f"SH{code}"
         elif code.startswith(("0", "3")):
-            secid = f"0.{code}"
+            secid = f"SZ{code}"
         elif code.startswith(("4", "8")):
-            secid = f"0.{code}"
+            secid = f"BJ{code}"
         
         if not secid:
             return {}
@@ -198,17 +237,14 @@ class CompanyPreloader(BatchProcessor[CompanyInfo, CompanyProcessResult]):
         params = {"code": secid}
         
         try:
-            async with session.get(EASTMONEY_COMPANY_PROFILE_URL, params=params) as resp:
-                data = await resp.json()
-                return data.get("jbzl", {})
+            data = await self._fetch_with_retry(EASTMONEY_COMPANY_PROFILE_URL, params)
+            return data.get("jbzl", {})
         except Exception as e:
             logger.debug(f"Failed to fetch company detail for {code}: {e}")
             return {}
     
     async def fetch_company_concepts(self, code: str) -> list[str]:
         """Fetch concept tags for a company."""
-        session = await self._get_session()
-        
         market = "1" if code.startswith("6") else "0"
         secid = f"{market}.{code}"
         
@@ -223,9 +259,8 @@ class CompanyPreloader(BatchProcessor[CompanyInfo, CompanyProcessResult]):
         }
         
         try:
-            async with session.get(EASTMONEY_CONCEPT_URL, params=params) as resp:
-                data = await resp.json()
-                
+            data = await self._fetch_with_retry(EASTMONEY_CONCEPT_URL, params)
+            
             concepts = []
             if data.get("data") and data["data"].get("diff"):
                 for item in data["data"]["diff"]:

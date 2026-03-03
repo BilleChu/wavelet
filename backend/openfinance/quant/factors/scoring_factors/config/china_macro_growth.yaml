@@ -1,0 +1,51 @@
+version: "1.0"
+metadata:
+  namespace: openfinance
+  description: 中国宏观经济增长因子定义
+
+factor_id: factor_china_macro_growth
+name: China Macro Growth Score
+display_name: 中国宏观经济增长评分
+description: 评估中国经济增长，包括GDP、工业增加值、固定资产投资、社会消费品零售
+factor_type: macro
+category: growth
+version: "1.0.0"
+author: system
+tags: [macro, china, growth, gdp]
+
+indicators:
+  GDP:
+    name: GDP增速
+    weight: 0.35
+    optimal_range: [5.0, 7.0]
+    score_formula: "min(100, max(0, value * 15))"
+    data_source: macro_economic
+    unit: "%"
+    
+  INDUSTRIAL_VALUE_ADDED:
+    name: 工业增加值
+    weight: 0.25
+    optimal_range: [5.0, 8.0]
+    score_formula: "min(100, max(0, value * 12))"
+    data_source: macro_economic
+    unit: "%"
+    
+  FIXED_ASSET_INVESTMENT:
+    name: 固定资产投资
+    weight: 0.2
+    optimal_range: [5.0, 10.0]
+    score_formula: "min(100, max(0, value * 10))"
+    data_source: macro_economic
+    unit: "%"
+    
+  RETAIL_SALES:
+    name: 社会消费品零售总额增速
+    weight: 0.2
+    optimal_range: [6.0, 10.0]
+    score_formula: "min(100, max(0, value * 10))"
+    data_source: macro_economic
+    unit: "%"
+
+output:
+  type: float
+  range: [0, 100]

@@ -1,0 +1,438 @@
+{
+  "metadata": {
+    "backtest_id": "backtest_20260302_233742",
+    "strategy_id": "strategy_strong_stock",
+    "start_date": "2025-03-02 00:00:00",
+    "end_date": "2026-03-02 00:00:00",
+    "duration_days": 365,
+    "generated_at": "2026-03-02T23:37:43.071896",
+    "status": "completed",
+    "initial_capital": 1000000.0,
+    "commission_rate": 0.0003,
+    "slippage_rate": 0.0001
+  },
+  "executive_summary": {
+    "final_equity": 999679.245273001,
+    "total_profit": -320.75472699897364,
+    "profit_percentage": -0.03207547269989736,
+    "total_return": -0.00032075472699897363,
+    "annual_return": -0.000310886885074968,
+    "max_drawdown": 0.00032075472699897363,
+    "sharpe_ratio": -96.1720230966925,
+    "win_rate": 0.0,
+    "total_trades": 30,
+    "strategy_grade": "C",
+    "strategy_score": 40.0,
+    "performance_assessment": "较差 - 策略表现不佳，需要重大改进"
+  },
+  "performance_metrics": {
+    "returns": {
+      "total_return": {
+        "value": -0.00032075472699897363,
+        "formatted": "-0.03%",
+        "description": "总收益率"
+      },
+      "annual_return": {
+        "value": -0.000310886885074968,
+        "formatted": "-0.03%",
+        "description": "年化收益率"
+      },
+      "benchmark_return": {
+        "value": 0.0,
+        "formatted": "0.00%",
+        "description": "基准收益率"
+      },
+      "excess_return": {
+        "value": -0.000310886885074968,
+        "formatted": "-0.03%",
+        "description": "超额收益率"
+      }
+    },
+    "risk": {
+      "volatility": {
+        "value": 0.00031517362716087095,
+        "formatted": "0.03%",
+        "description": "年化波动率"
+      },
+      "downside_volatility": {
+        "value": 0.00031517362716087095,
+        "formatted": "0.03%",
+        "description": "下行波动率"
+      },
+      "max_drawdown": {
+        "value": 0.00032075472699897363,
+        "formatted": "0.03%",
+        "description": "最大回撤"
+      },
+      "var_95": {
+        "value": 0.0,
+        "formatted": "N/A",
+        "description": "95% VaR"
+      },
+      "cvar_95": {
+        "value": -1.2336720269191293e-06,
+        "formatted": "-0.00%",
+        "description": "95% CVaR"
+      }
+    },
+    "risk_adjusted": {
+      "sharpe_ratio": {
+        "value": -96.1720230966925,
+        "formatted": "-96.17",
+        "description": "夏普比率",
+        "rating": "很差"
+      },
+      "sortino_ratio": {
+        "value": -96.17202309669248,
+        "formatted": "-96.17",
+        "description": "索提诺比率",
+        "rating": "很差"
+      },
+      "calmar_ratio": {
+        "value": -0.9692355526095263,
+        "formatted": "-0.97",
+        "description": "卡尔马比率"
+      },
+      "information_ratio": {
+        "value": 0.0,
+        "formatted": "0.00",
+        "description": "信息比率"
+      }
+    },
+    "market_risk": {
+      "beta": {
+        "value": null,
+        "description": "贝塔系数"
+      },
+      "alpha": {
+        "value": null,
+        "description": "阿尔法"
+      },
+      "r_squared": {
+        "value": null,
+        "description": "R平方"
+      }
+    },
+    "trading": {
+      "win_rate": {
+        "value": 0.0,
+        "formatted": "0.00%",
+        "description": "胜率"
+      },
+      "profit_loss_ratio": {
+        "value": 0.0,
+        "formatted": "0.00",
+        "description": "盈亏比"
+      },
+      "total_trades": {
+        "value": 30,
+        "description": "总交易次数"
+      },
+      "turnover_rate": {
+        "value": 0.4009439014868558,
+        "formatted": "40.09%",
+        "description": "换手率"
+      }
+    }
+  },
+  "risk_analysis": {
+    "volatility_analysis": {
+      "daily_vol": 1.985407231604421e-05,
+      "annual_vol": 0.00031517362716087095,
+      "vol_percentile": 0.0
+    },
+    "var_analysis": {
+      "var_90": {
+        "var": 0.0,
+        "cvar": -1.2336720269191293e-06,
+        "formatted_var": "0.00%",
+        "formatted_cvar": "-0.00%"
+      },
+      "var_95": {
+        "var": 0.0,
+        "cvar": -1.2336720269191293e-06,
+        "formatted_var": "0.00%",
+        "formatted_cvar": "-0.00%"
+      },
+      "var_99": {
+        "var": 0.0,
+        "cvar": -1.2336720269191293e-06,
+        "formatted_var": "0.00%",
+        "formatted_cvar": "-0.00%"
+      }
+    },
+    "drawdown_statistics": {
+      "max_drawdown": 0.00032075472699897363,
+      "avg_drawdown": 1.2289453141723128e-06,
+      "median_drawdown": 0.0,
+      "drawdown_std": 1.981614776284185e-05,
+      "max_drawdown_duration": 1
+    },
+    "tail_risk": {
+      "skewness": -16.031339962830963,
+      "kurtosis": 255.00386100386095,
+      "tail_ratio": 1.0
+    },
+    "worst_days": {
+      "worst_1_day": -0.00032075472699897363,
+      "worst_5_days": 0.0,
+      "worst_10_days": 0.0
+    },
+    "best_days": {
+      "best_1_day": 0.0,
+      "best_5_days": 0.0,
+      "best_10_days": 0.0
+    }
+  },
+  "return_analysis": {
+    "distribution": {
+      "mean": -1.2336720269191293e-06,
+      "median": 0.0,
+      "std": 1.985407231604421e-05,
+      "min": -0.00032075472699897363,
+      "max": 0.0,
+      "skewness": -16.031339962830963,
+      "kurtosis": 255.00386100386095
+    },
+    "statistics": {
+      "total_days": 260,
+      "positive_days": 0,
+      "negative_days": 1,
+      "zero_days": 259,
+      "positive_ratio": 0.0
+    },
+    "averages": {
+      "avg_positive": 0,
+      "avg_negative": -0.00032075472699897363,
+      "avg_absolute": 1.2336720269191293e-06
+    },
+    "percentiles": {
+      "p5": 0.0,
+      "p25": 0.0,
+      "p50": 0.0,
+      "p75": 0.0,
+      "p95": 0.0
+    }
+  },
+  "drawdown_analysis": {
+    "summary": {
+      "max_drawdown": 0.00032075472699897363,
+      "avg_drawdown": 1.2289453141723128e-06,
+      "current_drawdown": 0.00032075472699897363,
+      "drawdown_periods": 0
+    },
+    "periods": [],
+    "distribution": {
+      "max": 0.00032075472699897363,
+      "p95": 0.0,
+      "p75": 0.0,
+      "median": 0.0,
+      "mean": 1.2289453141723128e-06
+    }
+  },
+  "trade_analysis": {
+    "summary": {
+      "total_trades": 30,
+      "buy_trades": 30,
+      "sell_trades": 0,
+      "total_buy_amount": 801886.8174974537,
+      "total_sell_amount": 0,
+      "total_commission": 240.56604524923605,
+      "total_slippage": 80.18868174974537,
+      "total_transaction_cost": 320.7547269989814
+    },
+    "trade_frequency": {
+      "avg_trades_per_day": 0.11494252873563218,
+      "avg_trades_per_month": 2.2988505747126435
+    },
+    "trade_size": {
+      "avg_trade_amount": 26729.560583248447,
+      "median_trade_amount": 27192.21018956302,
+      "max_trade_amount": 33029.87105445545,
+      "min_trade_amount": 16996.37858141329
+    },
+    "stock_analysis": {
+      "total_stocks_traded": 30,
+      "top_10_stocks": [
+        {
+          "stock_code": "600886",
+          "buy_count": 1,
+          "sell_count": 0,
+          "total_amount": 33029.87105445545
+        },
+        {
+          "stock_code": "000703",
+          "buy_count": 1,
+          "sell_count": 0,
+          "total_amount": 32605.95458592368
+        },
+        {
+          "stock_code": "601857",
+          "buy_count": 1,
+          "sell_count": 0,
+          "total_amount": 32122.863930419993
+        },
+        {
+          "stock_code": "601888",
+          "buy_count": 1,
+          "sell_count": 0,
+          "total_amount": 31949.170352178957
+        },
+        {
+          "stock_code": "600276",
+          "buy_count": 1,
+          "sell_count": 0,
+          "total_amount": 31738.592783840206
+        },
+        {
+          "stock_code": "601818",
+          "buy_count": 1,
+          "sell_count": 0,
+          "total_amount": 31530.124633400665
+        },
+        {
+          "stock_code": "600000",
+          "buy_count": 1,
+          "sell_count": 0,
+          "total_amount": 30161.196716122093
+        },
+        {
+          "stock_code": "000661",
+          "buy_count": 1,
+          "sell_count": 0,
+          "total_amount": 30142.121944138595
+        },
+        {
+          "stock_code": "601728",
+          "buy_count": 1,
+          "sell_count": 0,
+          "total_amount": 29857.85077939874
+        },
+        {
+          "stock_code": "600519",
+          "buy_count": 1,
+          "sell_count": 0,
+          "total_amount": 29175.43108768981
+        }
+      ]
+    }
+  },
+  "benchmark_comparison": {},
+  "monthly_returns": {
+    "monthly_returns": {
+      "2025-04": {
+        "return": 0.0,
+        "formatted": "0.00%"
+      },
+      "2025-05": {
+        "return": 0.0,
+        "formatted": "0.00%"
+      },
+      "2025-06": {
+        "return": 0.0,
+        "formatted": "0.00%"
+      },
+      "2025-07": {
+        "return": 0.0,
+        "formatted": "0.00%"
+      },
+      "2025-08": {
+        "return": 0.0,
+        "formatted": "0.00%"
+      },
+      "2025-09": {
+        "return": 0.0,
+        "formatted": "0.00%"
+      },
+      "2025-10": {
+        "return": 0.0,
+        "formatted": "0.00%"
+      },
+      "2025-11": {
+        "return": 0.0,
+        "formatted": "0.00%"
+      },
+      "2025-12": {
+        "return": 0.0,
+        "formatted": "0.00%"
+      },
+      "2026-01": {
+        "return": 0.0,
+        "formatted": "0.00%"
+      },
+      "2026-02": {
+        "return": 0.0,
+        "formatted": "0.00%"
+      },
+      "2026-03": {
+        "return": -0.0003207547269989952,
+        "formatted": "-0.03%"
+      }
+    },
+    "best_month": {
+      "month": "2025-04",
+      "return": 0.0
+    },
+    "worst_month": {
+      "month": "2026-03",
+      "return": -0.0003207547269989952
+    },
+    "positive_months": 0,
+    "negative_months": 1
+  },
+  "yearly_returns": {
+    "yearly_returns": {
+      "2026": {
+        "return": -0.0003207547269989952,
+        "formatted": "-0.03%"
+      }
+    },
+    "best_year": {
+      "year": "2026",
+      "return": -0.0003207547269989952
+    },
+    "worst_year": {
+      "year": "2026",
+      "return": -0.0003207547269989952
+    }
+  },
+  "risk_decomposition": {
+    "total_risk": 0.00031517362716087095,
+    "risk_components": {
+      "systematic_risk": {
+        "value": 0.2,
+        "percentage": 63457.086115240214,
+        "description": "系统性风险（市场风险）"
+      },
+      "idiosyncratic_risk": {
+        "value": 0,
+        "percentage": 0.0,
+        "description": "特质风险（个股风险）"
+      }
+    },
+    "risk_adjusted_performance": {
+      "return_per_unit_risk": -0.9863987919150515,
+      "downside_risk_adjusted": -0.9863987919150515
+    }
+  },
+  "recommendations": [
+    {
+      "category": "风险调整收益",
+      "issue": "夏普比率较低",
+      "recommendation": "考虑优化策略以降低波动率或提高收益率",
+      "priority": "高"
+    },
+    {
+      "category": "交易策略",
+      "issue": "胜率偏低",
+      "recommendation": "优化选股逻辑，提高信号质量",
+      "priority": "中"
+    },
+    {
+      "category": "盈亏比",
+      "issue": "盈亏比不理想",
+      "recommendation": "优化止盈止损策略，让盈利奔跑",
+      "priority": "中"
+    }
+  ]
+}

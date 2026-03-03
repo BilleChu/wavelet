@@ -159,11 +159,16 @@ class IncomeStatementCollector(FundamentalDataCollector):
             "code": code_id,
             "dataType": "1",
         }
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Referer": "https://emweb.eastmoney.com/PC_HSF10/NewFinanceAnalysis/Index",
+            "Accept": "application/json, text/javascript, */*; q=0.01",
+        }
 
         records = []
         async with aiohttp.ClientSession() as session:
             try:
-                async with session.get(url, params=params) as response:
+                async with session.get(url, params=params, headers=headers) as response:
                     data = await response.json()
                 
                 if data.get("data") and data["data"].get("lr"):
@@ -266,11 +271,16 @@ class BalanceSheetCollector(FundamentalDataCollector):
             "code": code_id,
             "dataType": "3",
         }
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Referer": "https://emweb.eastmoney.com/PC_HSF10/NewFinanceAnalysis/Index",
+            "Accept": "application/json, text/javascript, */*; q=0.01",
+        }
 
         records = []
         async with aiohttp.ClientSession() as session:
             try:
-                async with session.get(url, params=params) as response:
+                async with session.get(url, params=params, headers=headers) as response:
                     data = await response.json()
                 
                 if data.get("data") and data["data"].get("zc"):
@@ -306,6 +316,109 @@ class BalanceSheetCollector(FundamentalDataCollector):
 
     async def _is_valid(self, record: Any) -> bool:
         return record.code is not None and record.report_date is not None
+
+    def _get_code_id(self, code: str) -> str:
+        if code.isdigit():
+            if code.startswith("6"):
+                return f"1.{code}"
+            else:
+                return f"0.{code}"
+        return f"0.{code}"
+
+    def _safe_float(self, value: Any) -> float | None:
+        if value is None or value == "-" or value == "":
+            return None
+        try:
+            return float(value)
+        except (ValueError, TypeError):
+            return None
+
+
+class CashFlowStatementCollector(FundamentalDataCollector):
+    """
+    Collector for cash flow statement data (现金流量表).
+    采集现金流量表数据，包括经营现金流、投资现金流、筹资现金流等。
+    """
+
+    def __init__(self, config: CollectionConfig | None = None) -> None:
+        if config is None:
+            config = CollectionConfig(
+                source=DataSource.EASTMONEY,
+                data_type=DataType.STOCK_FINANCIAL_INDICATOR,
+                category=DataCategory.FUNDAMENTAL,
+                frequency=DataFrequency.QUARTERLY,
+            )
+        super().__init__(config)
+
+    @property
+    def source(self) -> DataSource:
+        return DataSource.EASTMONEY
+
+    async def _initialize(self) -> None:
+        logger.info(f"Initialized {self.__class__.__name__}")
+
+    async def _cleanup(self) -> None:
+        logger.info(f"Cleaned up {self.__class__.__name__}")
+
+    async def _collect(self, **kwargs: Any) -> list[Any]:
+        code = kwargs.get("code")
+        if not code:
+            raise ValueError("code parameter is required")
+        return await self._collect_cash_flow(code)
+
+    async def _collect_cash_flow(self, code: str) -> list[Any]:
+        import aiohttp
+
+        code_id = self._get_code_id(code)
+        
+        url = "https://emweb.eastmoney.com/PC_HSF10/NewFinanceAnalysis/ZYZBAjaxNew"
+        params = {
+            "companyType": "4",
+            "reportDateType": "0",
+            "code": code_id,
+            "dataType": "2",
+        }
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Referer": "https://emweb.eastmoney.com/PC_HSF10/NewFinanceAnalysis/Index",
+            "Accept": "application/json, text/javascript, */*; q=0.01",
+        }
+
+        records = []
+        async with aiohttp.ClientSession() as session:
+            try:
+                async with session.get(url, params=params, headers=headers) as response:
+                    data = await response.json()
+                
+                if data.get("data") and data["data"].get("xjll"):
+                    for item in data["data"]["xjll"]:
+                        report_date_str = item.get("date")
+                        report_date = None
+                        if report_date_str:
+                            try:
+                                report_date = datetime.strptime(report_date_str, "%Y-%m-%d").date()
+                            except ValueError:
+                                pass
+                        
+                        records.append({
+                            "code": code,
+                            "report_date": report_date,
+                            "report_type": item.get("type", "annual"),
+                            "net_cash_from_operating": self._safe_float(item.get("jyxjl")),
+                            "net_cash_from_investing": self._safe_float(item.get("tzxjl")),
+                            "net_cash_from_financing": self._safe_float(item.get("czxjl")),
+                            "free_cash_flow": self._safe_float(item.get("zyxjl")),
+                        })
+            except Exception as e:
+                logger.warning(f"Failed to collect cash flow for {code}: {e}")
+
+        return records
+
+    def _get_record_hash(self, record: Any) -> str:
+        return f"{record.get('code')}_{record.get('report_date')}_{record.get('report_type', 'annual')}"
+
+    async def _is_valid(self, record: Any) -> bool:
+        return record.get("code") is not None and record.get("report_date") is not None
 
     def _get_code_id(self, code: str) -> str:
         if code.isdigit():

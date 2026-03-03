@@ -84,6 +84,8 @@ class BacktestEngine:
                 dates,
                 strategy.rebalance_freq,
             )
+            
+            logger.info(f"Backtest: {len(dates)} dates, {len(rebalance_dates)} rebalance dates")
 
             for i, date in enumerate(dates):
                 daily_data = price_data[price_data["trade_date"] == date]
@@ -95,12 +97,16 @@ class BacktestEngine:
                         factor_values,
                         date,
                     )
+                    
+                    logger.info(f"Date {date}: generated {len(signals)} signals")
 
                     weights = self._strategy_engine.calculate_weights(
                         strategy,
                         signals,
                         daily_data,
                     )
+                    
+                    logger.info(f"Date {date}: calculated {len(weights)} weights")
 
                     trades_today = self._rebalance_portfolio(
                         current_positions,
@@ -111,6 +117,9 @@ class BacktestEngine:
                         date,
                     )
                     trades.extend(trades_today)
+                    
+                    if trades_today:
+                        logger.info(f"Date {date}: executed {len(trades_today)} trades")
 
                     for trade in trades_today:
                         if trade.direction == "buy":

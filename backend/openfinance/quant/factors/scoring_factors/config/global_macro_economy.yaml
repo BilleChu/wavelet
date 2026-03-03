@@ -1,0 +1,50 @@
+version: "1.0"
+metadata:
+  namespace: openfinance
+  description: 全球宏观经济因子定义
+
+factor_id: factor_global_macro_economy
+name: Global Macro Economy Score
+display_name: 全球宏观经济评分
+description: 评估美国经济动能，包括GDP增速、非农就业、失业率、消费者信心
+factor_type: macro
+category: economic
+version: "1.0.0"
+author: system
+tags: [macro, global, us, economy]
+
+indicators:
+  US_GDP_GROWTH:
+    name: 美国GDP增速
+    weight: 0.3
+    optimal_range: [2.0, 3.5]
+    score_formula: "min(100, max(0, value * 25))"
+    data_source: macro_economic
+    unit: "%"
+    
+  NONFARM_PAYROLL:
+    name: 非农就业
+    weight: 0.25
+    optimal_range: [150000, 300000]
+    score_formula: "min(100, max(0, 70 + (value - 200000) / 5000))"
+    data_source: macro_economic
+    unit: "人"
+    
+  US_UNEMPLOYMENT:
+    name: 失业率
+    weight: 0.25
+    optimal_range: [3.5, 4.5]
+    score_formula: "max(0, 100 - abs(value - 4.0) * 20)"
+    data_source: macro_economic
+    unit: "%"
+    
+  US_CONSUMER_CONFIDENCE:
+    name: 消费者信心
+    weight: 0.2
+    optimal_range: [100, 120]
+    score_formula: "min(100, value * 0.8)"
+    data_source: macro_economic
+
+output:
+  type: float
+  range: [0, 100]

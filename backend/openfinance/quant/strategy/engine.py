@@ -35,6 +35,25 @@ class StrategyEngine:
     def __init__(self) -> None:
         self._strategies: dict[str, Strategy] = {}
         self._register_builtin_strategies()
+        self._load_strategies_from_config()
+    
+    def _load_strategies_from_config(self) -> None:
+        """Load strategies from configuration files."""
+        try:
+            from .config_loader import get_strategy_config_loader
+            
+            loader = get_strategy_config_loader()
+            configs = loader.load_all()
+            
+            for strategy_id, config in configs.items():
+                try:
+                    strategy = loader.to_domain_strategy(config)
+                    self._strategies[strategy_id] = strategy
+                    logger.info(f"Loaded strategy from config: {strategy_id}")
+                except Exception as e:
+                    logger.error(f"Failed to load strategy {strategy_id}: {e}")
+        except Exception as e:
+            logger.warning(f"Failed to load strategies from config: {e}")
     
     def _register_builtin_strategies(self) -> None:
         """Register built-in strategies."""
@@ -142,12 +161,18 @@ class StrategyEngine:
         factor_id = strategy.factors[0]
         values = factor_values.get(factor_id, [])
 
-        if date:
+        if date and values:
             if hasattr(date, 'date'):
-                values = [v for v in values if v.trade_date.date() == date.date()]
+                target_date = date.date() if hasattr(date, 'date') else date
+                date_filtered = [v for v in values if v.trade_date.date() == target_date]
             else:
-                from datetime import datetime as dt
-                values = [v for v in values if v.trade_date.date() == date]
+                date_filtered = [v for v in values if v.trade_date.date() == date]
+            
+            if date_filtered:
+                values = date_filtered
+            else:
+                latest_date = max(v.trade_date for v in values)
+                values = [v for v in values if v.trade_date == latest_date]
 
         signals = {}
         for v in values:
@@ -177,11 +202,19 @@ class StrategyEngine:
 
         for factor_id in strategy.factors:
             values = factor_values.get(factor_id, [])
-            if date:
+            
+            if date and values:
                 if hasattr(date, 'date'):
-                    values = [v for v in values if v.trade_date.date() == date.date()]
+                    target_date = date.date() if hasattr(date, 'date') else date
+                    date_filtered = [v for v in values if v.trade_date.date() == target_date]
                 else:
-                    values = [v for v in values if v.trade_date.date() == date]
+                    date_filtered = [v for v in values if v.trade_date.date() == date]
+                
+                if date_filtered:
+                    values = date_filtered
+                else:
+                    latest_date = max(v.trade_date for v in values)
+                    values = [v for v in values if v.trade_date == latest_date]
 
             factor_weight = weights.get(factor_id, 0.0)
 

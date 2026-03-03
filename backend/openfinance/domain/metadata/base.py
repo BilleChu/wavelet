@@ -53,6 +53,9 @@ class MetadataCategory(str, Enum):
     ALTERNATIVE = "alternative"
     SENTIMENT = "sentiment"
     MONEY_FLOW = "money_flow"
+    EXPERTISE = "expertise"
+    INVESTMENT = "investment"
+    SOCIAL = "social"
 
 
 @dataclass

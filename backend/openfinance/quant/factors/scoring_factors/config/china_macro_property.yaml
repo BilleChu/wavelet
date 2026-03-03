@@ -1,0 +1,48 @@
+version: "1.0"
+metadata:
+  namespace: openfinance
+  description: 中国宏观房地产因子定义
+
+factor_id: factor_china_macro_property
+name: China Macro Property Score
+display_name: 中国宏观房地产评分
+description: 评估中国房地产市场，包括投资、销售、价格、土地购置
+factor_type: macro
+category: economic
+version: "1.0.0"
+author: system
+tags: [macro, china, property, real_estate]
+
+indicators:
+  PROPERTY_INVESTMENT:
+    name: 房地产开发投资增速
+    weight: 0.3
+    optimal_range: [0, 8.0]
+    score_formula: "max(0, 50 + value * 5)"
+    data_source: macro_economic
+    unit: "%"
+    
+  PROPERTY_SALES:
+    name: 商品房销售面积增速
+    weight: 0.3
+    score_formula: "max(0, 50 + value * 3)"
+    data_source: macro_economic
+    unit: "%"
+    
+  NEW_HOME_PRICE:
+    name: 新房价格指数
+    weight: 0.2
+    optimal_range: [100, 105]
+    score_formula: "max(0, 100 - abs(value - 102.5) * 10)"
+    data_source: macro_economic
+    
+  LAND_PURCHASES:
+    name: 土地购置面积增速
+    weight: 0.2
+    score_formula: "max(0, 50 + value * 2)"
+    data_source: macro_economic
+    unit: "%"
+
+output:
+  type: float
+  range: [0, 100]

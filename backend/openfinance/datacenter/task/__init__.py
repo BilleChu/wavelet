@@ -30,6 +30,7 @@ from openfinance.datacenter.task.registry import (
 )
 from openfinance.datacenter.task.executors import register_all_executors
 from openfinance.datacenter.task.additional_executors import register_additional_executors
+from openfinance.datacenter.task.analysis_executors import register_analysis_executors
 from openfinance.datacenter.task.dag_engine import (
     DAG,
     DAGEngine,
@@ -86,6 +87,7 @@ __all__ = [
     "HANDLERS",
     "register_all_executors",
     "register_additional_executors",
+    "register_analysis_executors",
     "DAG",
     "DAGEngine",
     "DAGBuilder",

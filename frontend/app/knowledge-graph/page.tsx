@@ -246,9 +246,11 @@ export default function KnowledgeGraphPage() {
       if (!changed) break
     }
 
+    const validDepths = Array.from(depths.values()).filter(d => d < 999)
+    const maxDepth = validDepths.length > 0 ? Math.max(...validDepths) : 0
     nodes.forEach(n => {
       if (depths.get(n.id) === 999) {
-        depths.set(n.id, 0)
+        depths.set(n.id, maxDepth + 1)
       }
     })
 
@@ -640,21 +642,6 @@ export default function KnowledgeGraphPage() {
     }
   }, [applyForces, drawGraph])
 
-  useEffect(() => {
-    if (graphData && isInitializedRef.current) {
-      initializeSimulation(graphData, centerNodeId)
-      if (animationRef.current) {
-        cancelAnimationFrame(animationRef.current)
-      }
-      animationRef.current = requestAnimationFrame(animate)
-    }
-    return () => {
-      if (animationRef.current) {
-        cancelAnimationFrame(animationRef.current)
-      }
-    }
-  }, [graphData, centerNodeId, initializeSimulation, animate])
-
   const loadDefaultGraph = async () => {
     setLoading(true)
     try {
@@ -735,8 +722,23 @@ export default function KnowledgeGraphPage() {
   const handleNodeClick = async (node: SimNode) => {
     setSelectedNode(node)
     setActiveTab('info')
-    setCenterNodeId(node.id)
-    await loadEntityDetails(node)
+    
+    // 以点击的节点为中心重新获取图谱数据
+    setLoading(true)
+    try {
+      const data = await graphService.getEntityGraph(node.id, depth)
+      setGraphData(data)
+      setCenterNodeId(node.id)
+      setZoom(1)
+      setOffset({ x: 0, y: 0 })
+      
+      // 加载实体详情
+      await loadEntityDetails(node)
+    } catch (error) {
+      console.error('Failed to load graph for node:', error)
+    } finally {
+      setLoading(false)
+    }
   }
 
   const handleExpandNode = async (newDepth: number) => {
@@ -748,6 +750,8 @@ export default function KnowledgeGraphPage() {
       setGraphData(data)
       setDepth(newDepth)
       setCenterNodeId(selectedNode.id)
+      setZoom(1)
+      setOffset({ x: 0, y: 0 })
     } catch (error) {
       console.error('Failed to expand node:', error)
     } finally {
@@ -878,6 +882,8 @@ export default function KnowledgeGraphPage() {
         setGraphData(data)
         setSelectedNode(clickedNode)
         setCenterNodeId(clickedNode.id)
+        setZoom(1)
+        setOffset({ x: 0, y: 0 })
         await loadEntityDetails(clickedNode)
       } catch (error) {
         console.error('Failed to expand node:', error)
@@ -1072,7 +1078,7 @@ export default function KnowledgeGraphPage() {
   }, [drawGraph])
 
   useEffect(() => {
-    if (graphData && canvasRef.current && containerRef.current) {
+    if (graphData && canvasRef.current && containerRef.current && !loading) {
       const container = containerRef.current
       const dpr = window.devicePixelRatio || 1
       dprRef.current = dpr
@@ -1093,7 +1099,7 @@ export default function KnowledgeGraphPage() {
       }
       animationRef.current = requestAnimationFrame(animate)
     }
-  }, [graphData])
+  }, [graphData, centerNodeId, loading])
 
   useEffect(() => {
     if (showQualityPanel && !qualityReport) {

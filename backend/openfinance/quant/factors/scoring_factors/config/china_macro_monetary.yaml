@@ -1,0 +1,50 @@
+version: "1.0"
+metadata:
+  namespace: openfinance
+  description: 中国宏观货币金融因子定义
+
+factor_id: factor_china_macro_monetary
+name: China Macro Monetary Score
+display_name: 中国宏观货币金融评分
+description: 评估中国货币金融状况，包括M2、社融、LPR、信贷增速
+factor_type: macro
+category: policy
+version: "1.0.0"
+author: system
+tags: [macro, china, monetary, m2, lpr]
+
+indicators:
+  M2:
+    name: M2增速
+    weight: 0.3
+    optimal_range: [8.0, 12.0]
+    score_formula: "max(0, 100 - abs(value - 10) * 8)"
+    data_source: macro_economic
+    unit: "%"
+    
+  SOCIAL_FINANCING:
+    name: 社会融资规模增量
+    weight: 0.25
+    score_formula: "min(100, value / 30000 * 100) if value else 50"
+    data_source: macro_economic
+    unit: "亿元"
+    
+  LPR_1Y:
+    name: 1年期LPR
+    weight: 0.25
+    optimal_range: [3.0, 4.0]
+    score_formula: "max(0, 100 - (value - 3.5) * 30)"
+    data_source: macro_economic
+    unit: "%"
+    
+  CREDIT_GROWTH:
+    name: 信贷增速
+    weight: 0.2
+    optimal_range: [10.0, 15.0]
+    score_formula: "min(100, value * 7)"
+    data_source: macro_economic
+    unit: "%"
+
+output:
+  type: float
+  range: [0, 100]

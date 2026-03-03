@@ -51,6 +51,44 @@ class Base(DeclarativeBase):
     pass
 
 
+async def init_db() -> bool:
+    """
+    Initialize database tables.
+    
+    Creates all tables defined in ORM models if they don't exist.
+    This function should be called during application startup.
+    
+    Returns:
+        bool: True if initialization succeeded, False otherwise.
+    """
+    if not engine:
+        logger.warning("Database engine not available, skipping table creation")
+        return False
+    
+    try:
+        from sqlalchemy import text
+        
+        async with engine.begin() as conn:
+            await conn.execute(text("CREATE SCHEMA IF NOT EXISTS openfinance"))
+        
+        from openfinance.datacenter.models.orm import Base as ORMBase
+        from openfinance.datacenter.models.analytical.base import Base as AnalyticalBase
+        
+        def create_tables(sync_conn):
+            ORMBase.metadata.create_all(sync_conn)
+            AnalyticalBase.metadata.create_all(sync_conn)
+        
+        async with engine.begin() as conn:
+            await conn.run_sync(create_tables)
+        
+        logger.info("Database tables initialized successfully")
+        return True
+        
+    except Exception as e:
+        logger.error(f"Failed to initialize database tables: {e}")
+        return False
+
+
 async def get_db() -> AsyncGenerator[Optional[AsyncSession], None]:
     """Get database session."""
     if not async_session_maker:

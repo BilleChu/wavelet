@@ -1,0 +1,47 @@
+version: "1.0"
+metadata:
+  namespace: openfinance
+  description: 市场资金流向因子定义
+
+factor_id: factor_market_capital_flow
+name: Market Capital Flow Score
+display_name: 市场资金流向评分
+description: 评估市场资金流向，包括北向资金、主力资金、融资余额、ETF资金
+factor_type: technical
+category: flow
+version: "1.0.0"
+author: system
+tags: [market, capital_flow, northbound]
+
+indicators:
+  NORTHBOUND_FLOW:
+    name: 北向资金净流入
+    weight: 0.35
+    score_formula: "min(100, max(0, 50 + value / 1000000000 * 5))"
+    data_source: capital_flow
+    unit: "元"
+    
+  MAIN_FORCE_FLOW:
+    name: 主力资金净流入
+    weight: 0.25
+    score_formula: "min(100, max(0, 50 + value / 10000000000 * 10))"
+    data_source: capital_flow
+    unit: "元"
+    
+  MARGIN_BALANCE_CHANGE:
+    name: 融资余额变化
+    weight: 0.2
+    score_formula: "min(100, max(0, 50 + value * 10))"
+    data_source: margin_trading
+    unit: "%"
+    
+  ETF_FLOW:
+    name: ETF资金流向
+    weight: 0.2
+    score_formula: "min(100, max(0, 50 + value / 1000000000 * 5))"
+    data_source: capital_flow
+    unit: "元"
+
+output:
+  type: float
+  range: [0, 100]

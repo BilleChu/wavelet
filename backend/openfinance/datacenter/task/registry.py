@@ -29,6 +29,8 @@ class TaskCategory(str, Enum):
     MACRO = "macro"
     DERIVATIVE = "derivative"
     KNOWLEDGE = "knowledge"
+    QUERY = "query"
+    ANALYSIS = "analysis"
 
 
 class TaskPriority(int, Enum):

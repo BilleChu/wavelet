@@ -8,6 +8,12 @@ triggers:
   - 数据源配置
   - 数据源测试
   - data source
+  - 研报
+  - 研究报告
+  - 券商研报
+  - 分析师报告
+  - 机构研报
+  - research report
 ---
 
 # Data Source Loader
@@ -112,6 +118,147 @@ curl -X POST "http://localhost:8000/api/datacenter/load" \
 | world_bank | api | global_gdp, inflation, trade_data |
 | postgres_local | database | stock_daily, stock_basic, factor_data, knowledge_graph |
 | redis_cache | cache | cache, session, realtime_quote |
+| elasticsearch | search | research_report, news, document_search |
+
+## 研报数据服务
+
+### 1. 获取研报列表
+
+```bash
+curl -X GET "http://localhost:8000/api/research-reports?page=1&page_size=10" \
+  -H "Content-Type: application/json"
+```
+
+**支持的过滤参数：**
+| 参数 | 类型 | 说明 |
+|------|------|------|
+| page | int | 页码，默认1 |
+| page_size | int | 每页数量，默认10，最大100 |
+| code | string | 股票代码过滤 |
+| institution | string | 机构名称过滤 |
+| rating | string | 评级过滤（买入/增持/持有/减持/卖出） |
+| source | string | 数据来源过滤 |
+
+**响应示例：**
+```json
+{
+  "reports": [
+    {
+      "report_id": "abc123",
+      "title": "XX公司深度研究报告",
+      "summary": "公司业绩持续增长...",
+      "source": "eastmoney",
+      "institution": "中信证券",
+      "analyst": "张三",
+      "rating": "买入",
+      "target_price": 50.00,
+      "related_codes": ["600000.SH"],
+      "related_names": ["浦发银行"],
+      "publish_date": "2024-01-15"
+    }
+  ],
+  "total": 100,
+  "page": 1,
+  "page_size": 10
+}
+```
+
+### 2. 搜索研报
+
+```bash
+curl -X GET "http://localhost:8000/api/research-reports/search?q=人工智能&page=1&page_size=10" \
+  -H "Content-Type: application/json"
+```
+
+**响应示例：**
+```json
+{
+  "reports": [
+    {
+      "report_id": "abc123",
+      "title": "人工智能行业深度研究报告",
+      "summary": "AI行业迎来快速发展期...",
+      "institution": "中信证券",
+      "rating": "买入",
+      "publish_date": "2024-01-15"
+    }
+  ],
+  "total": 46,
+  "page": 1,
+  "page_size": 10
+}
+```
+
+### 3. 获取研报详情
+
+```bash
+curl -X GET "http://localhost:8000/api/research-reports/{report_id}" \
+  -H "Content-Type: application/json"
+```
+
+**响应字段：**
+| 字段名 | 类型 | 说明 |
+|--------|------|------|
+| report_id | string | 研报唯一标识 |
+| title | string | 研报标题 |
+| summary | string | 研报摘要 |
+| content | string | 研报正文内容 |
+| source | string | 数据来源 |
+| source_url | string | 原始链接 |
+| institution | string | 研究机构 |
+| analyst | string | 分析师 |
+| rating | string | 评级 |
+| target_price | float | 目标价 |
+| related_codes | array | 关联股票代码 |
+| related_names | array | 关联股票名称 |
+| industry | string | 所属行业 |
+| sentiment_score | float | 情感得分 |
+| sentiment_label | string | 情感标签 |
+| extracted_entities | object | 提取的实体 |
+| extracted_relations | object | 提取的关系 |
+| publish_date | string | 发布日期 |
+| report_type | string | 研报类型 |
+
+### 4. 获取研报统计
+
+```bash
+curl -X GET "http://localhost:8000/api/research-reports/stats" \
+  -H "Content-Type: application/json"
+```
+
+**响应示例：**
+```json
+{
+  "total_reports": 100,
+  "by_source": {
+    "eastmoney": 100
+  },
+  "by_rating": {
+    "买入": 46,
+    "增持": 25,
+    "持有": 20
+  },
+  "by_institution": {
+    "中信证券": 15,
+    "华泰证券": 12
+  },
+  "recent_count": 10
+}
+```
+
+### 5. 按股票代码获取研报
+
+```bash
+curl -X GET "http://localhost:8000/api/research-reports/code/600000.SH?page=1&page_size=10" \
+  -H "Content-Type: application/json"
+```
+
+### 6. 按机构获取研报
+
+```bash
+curl -X GET "http://localhost:8000/api/research-reports/institution/中信证券?page=1&page_size=10" \
+  -H "Content-Type: application/json"
+```
 
 ## 使用示例
 
@@ -173,6 +320,47 @@ curl -X POST "http://localhost:8000/api/datacenter/load" \
 - 成交量: 125,000手
 
 数据已加载完成，是否需要进一步分析？
+```
+
+### 示例4：搜索研报
+
+```
+用户: 搜索关于人工智能的研报
+助手: 正在搜索研报数据库...
+
+📄 **研报搜索结果**
+
+搜索关键词: 人工智能
+找到 46 条相关研报
+
+**热门研报：**
+1. 人工智能行业深度研究报告 - 中信证券 (买入)
+2. AI大模型产业投资机会分析 - 华泰证券 (增持)
+3. 人工智能芯片产业链研究 - 国泰君安 (买入)
+
+是否需要查看某篇研报的详细内容？
+```
+
+### 示例5：查询股票相关研报
+
+```
+用户: 查询浦发银行相关的研报
+助手: 正在查询浦发银行(600000.SH)相关研报...
+
+📊 **浦发银行相关研报**
+
+共找到 5 条研报：
+
+| 机构 | 评级 | 目标价 | 发布日期 |
+|------|------|--------|----------|
+| 中信证券 | 买入 | 12.50 | 2024-01-15 |
+| 华泰证券 | 增持 | 11.80 | 2024-01-10 |
+| 国泰君安 | 持有 | - | 2024-01-05 |
+
+**最新研报摘要：**
+中信证券研报指出，浦发银行2023年业绩稳健，净息差企稳回升，资产质量持续改善...
+
+是否需要查看完整研报内容？
 ```
 
 ## 错误处理

@@ -279,6 +279,173 @@ class RSIKDJMomentumStrategy(BaseStrategy):
 
 
 @register_strategy(is_builtin=True)
+class StrongStockStrategy(BaseStrategy):
+    """
+    Multi-factor strategy for identifying strong stocks.
+    
+    Combines multiple factors to identify stocks with:
+    1. Strong price momentum
+    2. High relative strength
+    3. Volume confirmation
+    4. Sustainable trend
+    
+    Factor Weights:
+    - Momentum: 30%
+    - Relative Strength: 30%
+    - Volume Strength: 20%
+    - Trend Strength: 20%
+    """
+    
+    def __init__(
+        self,
+        strategy_id: str = "strategy_strong_stock",
+        name: str = "强势股多因子策略",
+        code: str = "strong_stock",
+        description: str = "通过动量、相对强度、成交量和趋势强度识别强势股",
+        factors: Optional[list[str]] = None,
+        factor_weights: Optional[dict[str, float]] = None,
+        weight_method: str = WeightMethod.EQUAL_WEIGHT,
+        rebalance_freq: str = RebalanceFrequency.WEEKLY,
+        max_positions: int = 30,
+        stop_loss: Optional[float] = -0.08,
+        take_profit: Optional[float] = 0.20,
+        parameters: Optional[dict[str, Any]] = None,
+    ) -> None:
+        super().__init__(
+            strategy_id=strategy_id,
+            name=name,
+            code=code,
+            description=description,
+            strategy_type=StrategyType.MULTI_FACTOR,
+            factors=factors or [
+                "factor_momentum",
+                "factor_relative_strength",
+                "factor_volume_strength",
+                "factor_trend_strength",
+            ],
+            factor_weights=factor_weights or {
+                "factor_momentum": 0.30,
+                "factor_relative_strength": 0.30,
+                "factor_volume_strength": 0.20,
+                "factor_trend_strength": 0.20,
+            },
+            weight_method=weight_method,
+            rebalance_freq=rebalance_freq,
+            max_positions=max_positions,
+            stop_loss=stop_loss,
+            take_profit=take_profit,
+            parameters=parameters,
+        )
+        
+        self.parameters = parameters or {
+            "momentum_period": 20,
+            "rs_period": 20,
+            "volume_period": 20,
+            "trend_period": 20,
+            "min_signal_threshold": 0.5,
+        }
+    
+    def generate_signals(
+        self,
+        data: dict[str, pd.DataFrame],
+        factor_values: Optional[dict[str, pd.DataFrame]] = None,
+        date: Optional[datetime] = None,
+    ) -> dict[str, float]:
+        """Generate trading signals for stocks."""
+        if not factor_values:
+            return {}
+        
+        combined_signals: dict[str, float] = {}
+        factor_counts: dict[str, int] = {}
+        
+        for factor_id in self.factors:
+            factor_df = factor_values.get(factor_id)
+            if factor_df is None or factor_df.empty:
+                continue
+            
+            if date:
+                if hasattr(date, 'date'):
+                    factor_df = factor_df[factor_df['trade_date'] == date]
+                else:
+                    factor_df = factor_df[factor_df['trade_date'] == date]
+            
+            factor_weight = self.factor_weights.get(factor_id, 0.0)
+            
+            for _, row in factor_df.iterrows():
+                stock_code = row.get('stock_code', row.get('code', ''))
+                value = row.get('value', row.get('zscore', None))
+                
+                if value is None or pd.isna(value):
+                    continue
+                
+                if stock_code not in combined_signals:
+                    combined_signals[stock_code] = 0.0
+                    factor_counts[stock_code] = 0
+                
+                combined_signals[stock_code] += value * factor_weight
+                factor_counts[stock_code] += 1
+        
+        min_factors = len(self.factors) * 0.5
+        filtered_signals = {
+            code: signal
+            for code, signal in combined_signals.items()
+            if factor_counts.get(code, 0) >= min_factors
+        }
+        
+        return filtered_signals
+    
+    def calculate_portfolio_weights(
+        self,
+        signals: dict[str, float],
+        prices: pd.DataFrame,
+        covariance_matrix: Optional[pd.DataFrame] = None,
+    ) -> dict[str, float]:
+        """Calculate optimal portfolio weights based on signals."""
+        if not signals:
+            return {}
+        
+        sorted_stocks = sorted(
+            signals.items(),
+            key=lambda x: x[1],
+            reverse=True,
+        )[:self.max_positions]
+        
+        if not sorted_stocks:
+            return {}
+        
+        positive_signals = [(code, sig) for code, sig in sorted_stocks if sig > 0]
+        
+        if not positive_signals:
+            return {}
+        
+        total_signal = sum(sig for _, sig in positive_signals)
+        
+        if total_signal > 0:
+            weights = {
+                code: sig / total_signal
+                for code, sig in positive_signals
+            }
+        else:
+            weight = 1.0 / len(positive_signals)
+            weights = {code: weight for code, _ in positive_signals}
+        
+        max_weight = 0.10
+        weights = {
+            code: min(weight, max_weight)
+            for code, weight in weights.items()
+        }
+        
+        total_weight = sum(weights.values())
+        if total_weight > 0:
+            weights = {
+                code: weight / total_weight
+                for code, weight in weights.items()
+            }
+        
+        return weights
+
+
+@register_strategy(is_builtin=True)
 class FlexibleMultiFactorStrategy(BaseStrategy):
     """
     Flexible Multi-Factor Strategy.
@@ -309,8 +476,16 @@ class FlexibleMultiFactorStrategy(BaseStrategy):
             code=code,
             description=description,
             strategy_type=StrategyType.MULTI_FACTOR,
-            factors=factors or [],
-            factor_weights=factor_weights or {},
+            factors=factors or [
+                "factor_rsi",
+                "factor_macd",
+                "factor_momentum",
+            ],
+            factor_weights=factor_weights or {
+                "factor_rsi": 0.35,
+                "factor_macd": 0.35,
+                "factor_momentum": 0.30,
+            },
             weight_method=weight_method,
             rebalance_freq=rebalance_freq,
             max_positions=max_positions,

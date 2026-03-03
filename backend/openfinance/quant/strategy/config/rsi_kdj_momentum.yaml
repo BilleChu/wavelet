@@ -1,0 +1,67 @@
+version: "1.0"
+metadata:
+  namespace: openfinance
+  description: RSI+KDJ动量策略配置
+
+strategy_id: strategy_rsi_kdj_momentum
+name: RSI+KDJ动量策略
+code: rsi_kdj_momentum
+display_name: RSI KDJ Momentum Strategy
+description: 结合RSI和KDJ指标的动量策略
+strategy_type: multi_factor
+version: "1.0.0"
+author: system
+tags: [rsi, kdj, momentum, oscillator]
+status: active
+
+factors:
+  - factor_id: factor_rsi
+    name: RSI因子
+    weight: 0.50
+    enabled: true
+    parameters:
+      period: 14
+      oversold_threshold: 30
+      overbought_threshold: 70
+    description: 相对强弱指标
+    
+  - factor_id: factor_kdj
+    name: KDJ因子
+    weight: 0.50
+    enabled: true
+    parameters:
+      n: 9
+      m1: 3
+      m2: 3
+    description: 随机指标
+
+portfolio:
+  max_positions: 50
+  position_size: 0.02
+  weight_method: equal_weight
+  rebalance_freq: monthly
+  
+risk_management:
+  stop_loss: -0.10
+  take_profit: 0.15
+  max_position_weight: 0.10
+  min_position_weight: 0.01
+  
+signal_generation:
+  min_signal_threshold: 0.3
+  min_factors_required: 1
+  normalization_method: zscore
+  
+backtest:
+  initial_capital: 1000000
+  commission: 0.0003
+  slippage: 0.0001
+  benchmark: "000300"
+  risk_free_rate: 0.03
+  
+universe:
+  min_market_cap: 3000000000
+  max_stocks: 200
+  exclude_st: true
+  exclude_suspended: true
+  min_price: 1.0

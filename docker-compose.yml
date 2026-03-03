@@ -116,6 +116,7 @@ services:
       - ./docker/postgres/init_tables.sql:/docker-entrypoint-initdb.d/02-init_tables.sql:ro
       - ./docker/postgres/init_factor_tables.sql:/docker-entrypoint-initdb.d/03-init_factor_tables.sql:ro
       - ./docker/postgres/init_stock_tables_v2.sql:/docker-entrypoint-initdb.d/04-init_stock_tables_v2.sql:ro
+      - ./docker/postgres/init_research_tables.sql:/docker-entrypoint-initdb.d/05-init_research_tables.sql:ro
     networks:
       - openfinance-network
     healthcheck:
@@ -153,6 +154,38 @@ services:
       driver: "json-file"
       options:
         max-size: "5m"
+        max-file: "3"
+
+  # ============================================
+  # Elasticsearch Search Engine
+  # ============================================
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.11.0
+    container_name: openfinance-elasticsearch
+    hostname: elasticsearch
+    restart: unless-stopped
+    ports:
+      - "9200:9200"
+      - "9300:9300"
+    environment:
+      - discovery.type=single-node
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+      - xpack.security.enabled=false
+      - xpack.security.enrollment.enabled=false
+    volumes:
+      - elasticsearch_data:/usr/share/elasticsearch/data
+    networks:
+      - openfinance-network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9200/_cluster/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
         max-file: "3"
 
   # ============================================
@@ -295,6 +328,8 @@ volumes:
     name: openfinance-postgres-data
   redis_data:
     name: openfinance-redis-data
+  elasticsearch_data:
+    name: openfinance-elasticsearch-data
   neo4j_data:
     name: openfinance-neo4j-data
   neo4j_logs:

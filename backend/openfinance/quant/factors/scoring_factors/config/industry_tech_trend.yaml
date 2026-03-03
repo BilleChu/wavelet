@@ -1,0 +1,46 @@
+version: "1.0"
+metadata:
+  namespace: openfinance
+  description: 行业技术趋势因子定义
+
+factor_id: factor_industry_tech_trend
+name: Industry Tech Trend Score
+display_name: 行业技术趋势评分
+description: 评估行业技术发展趋势，包括研发投入、专利增长、技术事件、创新指数
+factor_type: industry
+category: tech_trend
+version: "1.0.0"
+author: system
+tags: [industry, tech, innovation, rd]
+
+indicators:
+  RD_INVESTMENT_GROWTH:
+    name: 研发投入增速
+    weight: 0.3
+    score_formula: "min(100, max(0, 50 + value * 3))"
+    data_source: financial_report
+    unit: "%"
+    
+  PATENT_GROWTH:
+    name: 专利申请增速
+    weight: 0.25
+    score_formula: "min(100, max(0, 50 + value * 2))"
+    data_source: patent_data
+    unit: "%"
+    
+  TECH_EVENT_IMPACT:
+    name: 技术事件影响
+    weight: 0.25
+    score_formula: "min(100, max(0, 50 + value * 10))"
+    data_source: event_graph
+    description: 技术突破事件影响评分
+    
+  INNOVATION_INDEX:
+    name: 创新指数
+    weight: 0.2
+    score_formula: "value"
+    data_source: industry_data
+
+output:
+  type: float
+  range: [0, 100]

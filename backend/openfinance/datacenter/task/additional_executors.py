@@ -83,7 +83,7 @@ class StockBasicInfoExecutor(TaskExecutor[Any]):
     
     async def save(self, data: list[Any], progress: TaskProgress) -> int:
         from ..persistence import persistence
-        return await persistence.save_stock_basic(data)
+        return await persistence.save("stock_basic", data)
 
 
 @task_executor(
@@ -226,7 +226,7 @@ class StockDailyQuoteExecutor(TaskExecutor[Any]):
     
     async def save(self, data: list[Any], progress: TaskProgress) -> int:
         from ..persistence import persistence
-        return await persistence.save_stock_quotes(data)
+        return await persistence.save("stock_daily_quote", data)
 
 
 @task_executor(
@@ -323,7 +323,7 @@ class IndexDailyQuoteExecutor(TaskExecutor[Any]):
     
     async def save(self, data: list[Any], progress: TaskProgress) -> int:
         from ..persistence import persistence
-        return await persistence.save_stock_quotes(data)
+        return await persistence.save("stock_daily_quote", data)
 
 
 @task_executor(
@@ -395,7 +395,7 @@ class MacroEconomicExecutor(TaskExecutor[Any]):
     
     async def save(self, data: list[Any], progress: TaskProgress) -> int:
         from ..persistence import persistence
-        return await persistence.save_macro_data(data)
+        return await persistence.save("macro_economic", data)
 
 
 @task_executor(
@@ -474,7 +474,7 @@ class FinancialNewsExecutor(TaskExecutor[Any]):
     
     async def save(self, data: list[Any], progress: TaskProgress) -> int:
         from ..persistence import persistence
-        return await persistence.save_news(data)
+        return await persistence.save("news", data)
 
 
 @task_executor(
@@ -1055,10 +1055,560 @@ class SyncConceptEntitiesExecutor(TaskExecutor[Any]):
         return saved
 
 
+@task_executor(
+    task_type="sync_stock_industry_relations",
+    name="股票行业关系同步",
+    description="根据股票基础信息创建股票-行业归属关系（belongs_to）",
+    category=TaskCategory.KNOWLEDGE,
+    source="internal",
+    priority=TaskPriority.HIGH,
+    timeout=600.0,
+    parameters=[
+        TaskParameter(
+            name="batch_size",
+            type="integer",
+            default=500,
+            description="每批处理的关系数量",
+        ),
+    ],
+    output=TaskOutput(
+        data_type="relations",
+        table_name="relations",
+        description="股票行业关系",
+        fields=["source_entity_id", "target_entity_id", "relation_type"],
+    ),
+    tags=["knowledge", "sync", "relations", "industry"],
+)
+class SyncStockIndustryRelationsExecutor(TaskExecutor[Any]):
+    """Executor for syncing stock-industry relations to knowledge graph."""
+
+    def __init__(self):
+        pass
+
+    async def collect(self, params: dict[str, Any], progress: TaskProgress) -> list[Any]:
+        from ..persistence import persistence
+        from sqlalchemy import text
+
+        batch_size = params.get("batch_size", 500)
+        progress.details["batch_size"] = batch_size
+        progress.details["source"] = "stock_basic + entities"
+
+        async with persistence.session_maker() as session:
+            result = await session.execute(text("""
+                SELECT 
+                    s.code as stock_code,
+                    s.industry as industry_name
+                FROM openfinance.stock_basic s
+                WHERE s.industry IS NOT NULL 
+                AND s.code IS NOT NULL 
+                AND s.name IS NOT NULL
+                ORDER BY s.code
+            """))
+            rows = result.fetchall()
+            progress.total_records = len(rows)
+
+            industry_names = list(set(row[1] for row in rows if row[1]))
+            industry_result = await session.execute(text("""
+                SELECT entity_id, name 
+                FROM openfinance.entities 
+                WHERE entity_type = 'industry'
+            """))
+            industry_entities = {row[1]: row[0] for row in industry_result.fetchall()}
+
+            stock_result = await session.execute(text("""
+                SELECT entity_id, code 
+                FROM openfinance.entities 
+                WHERE entity_type = 'stock'
+            """))
+            stock_entities = {row[1]: row[0] for row in stock_result.fetchall()}
+
+            relations = []
+            for stock_code, industry_name in rows:
+                if not industry_name:
+                    continue
+
+                stock_entity_id = stock_entities.get(stock_code)
+                industry_entity_id = industry_entities.get(industry_name)
+
+                if stock_entity_id and industry_entity_id:
+                    relations.append({
+                        "source_entity_id": stock_entity_id,
+                        "target_entity_id": industry_entity_id,
+                        "relation_type": "belongs_to",
+                        "weight": 1.0,
+                        "confidence": 1.0,
+                        "source": "stock_basic",
+                        "properties": {
+                            "primary": True,
+                        },
+                    })
+
+            progress.details["total_potential_relations"] = len(relations)
+            progress.details["industries_found"] = len(industry_entities)
+            progress.details["stocks_found"] = len(stock_entities)
+
+            return relations
+
+    async def validate(self, data: list[Any]) -> list[Any]:
+        return [d for d in data if d.get("source_entity_id") and d.get("target_entity_id")]
+
+    async def save(self, data: list[Any], progress: TaskProgress) -> int:
+        from openfinance.infrastructure.database import get_db
+        from openfinance.datacenter.models import RelationModel
+        from sqlalchemy import select, and_
+        import uuid
+
+        batch_size = progress.details.get("batch_size", 500)
+        saved = 0
+        skipped = 0
+
+        async for db in get_db():
+            if db is None:
+                logger.warning("Database not available")
+                return 0
+
+            for i in range(0, len(data), batch_size):
+                batch = data[i:i + batch_size]
+
+                for relation_data in batch:
+                    try:
+                        existing = await db.execute(
+                            select(RelationModel).where(
+                                and_(
+                                    RelationModel.source_entity_id == relation_data["source_entity_id"],
+                                    RelationModel.target_entity_id == relation_data["target_entity_id"],
+                                    RelationModel.relation_type == relation_data["relation_type"],
+                                )
+                            )
+                        )
+                        existing_relation = existing.scalar_one_or_none()
+
+                        if existing_relation:
+                            skipped += 1
+                            continue
+
+                        relation = RelationModel(
+                            id=str(uuid.uuid4()),
+                            relation_id=f"rel_{uuid.uuid4().hex[:8]}",
+                            source_entity_id=relation_data["source_entity_id"],
+                            target_entity_id=relation_data["target_entity_id"],
+                            relation_type=relation_data["relation_type"],
+                            weight=relation_data.get("weight", 1.0),
+                            confidence=relation_data.get("confidence", 1.0),
+                            source=relation_data.get("source", "stock_basic"),
+                            properties=relation_data.get("properties", {}),
+                        )
+                        db.add(relation)
+                        saved += 1
+
+                    except Exception as e:
+                        logger.warning(f"Failed to save relation: {e}")
+
+                    progress.saved_records = saved + skipped
+
+                await db.commit()
+                logger.info(f"Synced batch {i // batch_size + 1}: {saved} new relations, {skipped} existing")
+
+            break
+
+        logger.info(f"Synced {saved} stock-industry relations, skipped {skipped} existing")
+        progress.details["saved"] = saved
+        progress.details["skipped"] = skipped
+        return saved
+
+
+@task_executor(
+    task_type="sync_stock_concept_relations",
+    name="股票概念关系同步",
+    description="根据概念成分数据创建股票-概念关联关系（has_concept）",
+    category=TaskCategory.KNOWLEDGE,
+    source="internal",
+    priority=TaskPriority.HIGH,
+    timeout=600.0,
+    parameters=[
+        TaskParameter(
+            name="batch_size",
+            type="integer",
+            default=500,
+            description="每批处理的关系数量",
+        ),
+    ],
+    output=TaskOutput(
+        data_type="relations",
+        table_name="relations",
+        description="股票概念关系",
+        fields=["source_entity_id", "target_entity_id", "relation_type"],
+    ),
+    tags=["knowledge", "sync", "relations", "concept"],
+)
+class SyncStockConceptRelationsExecutor(TaskExecutor[Any]):
+    """Executor for syncing stock-concept relations to knowledge graph."""
+
+    def __init__(self):
+        pass
+
+    async def collect(self, params: dict[str, Any], progress: TaskProgress) -> list[Any]:
+        from ..persistence import persistence
+        from sqlalchemy import text
+
+        batch_size = params.get("batch_size", 500)
+        progress.details["batch_size"] = batch_size
+        progress.details["source"] = "concept_member + entities"
+
+        async with persistence.session_maker() as session:
+            try:
+                result = await session.execute(text("""
+                    SELECT 
+                        cm.stock_code,
+                        cm.concept_code
+                    FROM openfinance.concept_member cm
+                    WHERE cm.stock_code IS NOT NULL 
+                    AND cm.concept_code IS NOT NULL
+                    ORDER BY cm.concept_code, cm.stock_code
+                """))
+                rows = result.fetchall()
+            except Exception as e:
+                logger.warning(f"concept_member table not found or query failed: {e}")
+                progress.details["error"] = str(e)
+                return []
+
+            progress.total_records = len(rows)
+
+            concept_result = await session.execute(text("""
+                SELECT entity_id, code 
+                FROM openfinance.entities 
+                WHERE entity_type = 'concept'
+            """))
+            concept_entities = {row[1]: row[0] for row in concept_result.fetchall()}
+
+            stock_result = await session.execute(text("""
+                SELECT entity_id, code 
+                FROM openfinance.entities 
+                WHERE entity_type = 'stock'
+            """))
+            stock_entities = {row[1]: row[0] for row in stock_result.fetchall()}
+
+            relations = []
+            for stock_code, concept_code in rows:
+                stock_entity_id = stock_entities.get(stock_code)
+                concept_entity_id = concept_entities.get(concept_code)
+
+                if stock_entity_id and concept_entity_id:
+                    relations.append({
+                        "source_entity_id": stock_entity_id,
+                        "target_entity_id": concept_entity_id,
+                        "relation_type": "has_concept",
+                        "weight": 1.0,
+                        "confidence": 1.0,
+                        "source": "concept_member",
+                        "properties": {},
+                    })
+
+            progress.details["total_potential_relations"] = len(relations)
+            progress.details["concepts_found"] = len(concept_entities)
+            progress.details["stocks_found"] = len(stock_entities)
+
+            return relations
+
+    async def validate(self, data: list[Any]) -> list[Any]:
+        return [d for d in data if d.get("source_entity_id") and d.get("target_entity_id")]
+
+    async def save(self, data: list[Any], progress: TaskProgress) -> int:
+        from openfinance.infrastructure.database import get_db
+        from openfinance.datacenter.models import RelationModel
+        from sqlalchemy import select, and_
+        import uuid
+
+        batch_size = progress.details.get("batch_size", 500)
+        saved = 0
+        skipped = 0
+
+        async for db in get_db():
+            if db is None:
+                logger.warning("Database not available")
+                return 0
+
+            for i in range(0, len(data), batch_size):
+                batch = data[i:i + batch_size]
+
+                for relation_data in batch:
+                    try:
+                        existing = await db.execute(
+                            select(RelationModel).where(
+                                and_(
+                                    RelationModel.source_entity_id == relation_data["source_entity_id"],
+                                    RelationModel.target_entity_id == relation_data["target_entity_id"],
+                                    RelationModel.relation_type == relation_data["relation_type"],
+                                )
+                            )
+                        )
+                        existing_relation = existing.scalar_one_or_none()
+
+                        if existing_relation:
+                            skipped += 1
+                            continue
+
+                        relation = RelationModel(
+                            id=str(uuid.uuid4()),
+                            relation_id=f"rel_{uuid.uuid4().hex[:8]}",
+                            source_entity_id=relation_data["source_entity_id"],
+                            target_entity_id=relation_data["target_entity_id"],
+                            relation_type=relation_data["relation_type"],
+                            weight=relation_data.get("weight", 1.0),
+                            confidence=relation_data.get("confidence", 1.0),
+                            source=relation_data.get("source", "concept_member"),
+                            properties=relation_data.get("properties", {}),
+                        )
+                        db.add(relation)
+                        saved += 1
+
+                    except Exception as e:
+                        logger.warning(f"Failed to save relation: {e}")
+
+                    progress.saved_records = saved + skipped
+
+                await db.commit()
+                logger.info(f"Synced batch {i // batch_size + 1}: {saved} new relations, {skipped} existing")
+
+            break
+
+        logger.info(f"Synced {saved} stock-concept relations, skipped {skipped} existing")
+        progress.details["saved"] = saved
+        progress.details["skipped"] = skipped
+        return saved
+
+
+@task_executor(
+    task_type="sync_industry_member_relations",
+    name="行业成员关系同步",
+    description="从同花顺获取行业成员数据并创建股票-行业关系",
+    category=TaskCategory.KNOWLEDGE,
+    source="ths",
+    priority=TaskPriority.HIGH,
+    timeout=1800.0,
+    parameters=[
+        TaskParameter(
+            name="batch_size",
+            type="integer",
+            default=10,
+            description="每批处理的行业数量",
+        ),
+    ],
+    output=TaskOutput(
+        data_type="relations",
+        table_name="relations",
+        description="股票行业关系",
+        fields=["source_entity_id", "target_entity_id", "relation_type"],
+    ),
+    tags=["knowledge", "sync", "relations", "industry", "ths"],
+)
+class SyncIndustryMemberRelationsExecutor(TaskExecutor[Any]):
+    """Executor for syncing stock-industry relations from THS industry member data."""
+
+    def __init__(self):
+        pass
+
+    async def collect(self, params: dict[str, Any], progress: TaskProgress) -> list[Any]:
+        from ..collector.implementations.industry_collectors import IndustryMemberCollector
+        from ..persistence import persistence
+        from sqlalchemy import text
+        import aiohttp
+
+        batch_size = params.get("batch_size", 10)
+        progress.details["batch_size"] = batch_size
+        progress.details["source"] = "ths_industry_member"
+
+        async with persistence.session_maker() as session:
+            result = await session.execute(text("""
+                SELECT entity_id, name, code 
+                FROM openfinance.entities 
+                WHERE entity_type = 'industry' AND code IS NOT NULL AND code LIKE 'BK%'
+                ORDER BY code
+            """))
+            industries = result.fetchall()
+            progress.details["total_industries"] = len(industries)
+            logger.info(f"Found {len(industries)} industries with codes")
+
+        relations = []
+        headers = {
+            "Accept": "text/html, */*; q=0.01",
+            "Accept-Encoding": "gzip, deflate",
+            "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "Host": "q.10jqka.com.cn",
+            "Pragma": "no-cache",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+            "X-Requested-With": "XMLHttpRequest",
+        }
+
+        async with aiohttp.ClientSession() as session:
+            for industry in industries:
+                industry_entity_id, industry_name, industry_code = industry
+                try:
+                    members = await self._collect_industry_member(session, industry_code, headers)
+                    for member in members:
+                        stock_code = member.get("stock_code", "")
+                        if stock_code:
+                            relations.append({
+                                "stock_code": stock_code,
+                                "stock_name": member.get("stock_name", ""),
+                                "industry_entity_id": industry_entity_id,
+                                "industry_name": industry_name,
+                                "industry_code": industry_code,
+                                "relation_type": "belongs_to",
+                                "weight": 1.0,
+                                "confidence": 1.0,
+                                "source": "ths_industry_member",
+                                "properties": {},
+                            })
+                    logger.debug(f"Collected {len(members)} members for industry {industry_name}")
+                except Exception as e:
+                    logger.warning(f"Failed to collect members for industry {industry_name}: {e}")
+
+                progress.processed_records = len(relations)
+
+        progress.total_records = len(relations)
+        progress.details["total_potential_relations"] = len(relations)
+        logger.info(f"Collected {len(relations)} potential stock-industry relations")
+        return relations
+
+    async def _collect_industry_member(self, session, code: str, headers: dict) -> list[dict]:
+        from bs4 import BeautifulSoup
+
+        url = f"http://q.10jqka.com.cn/thshy/detail/field/199112/order/desc/page/1/ajax/1/code/{code}"
+
+        async with session.get(url, headers=headers) as response:
+            html = await response.text()
+
+        soup = BeautifulSoup(html, "lxml")
+
+        try:
+            page_links = soup.find_all("a", attrs={"class": "changePage"})
+            total_pages = int(page_links[-1]["page"]) if page_links else 1
+        except Exception:
+            total_pages = 1
+
+        records = []
+        for page in range(1, total_pages + 1):
+            page_url = f"http://q.10jqka.com.cn/thshy/detail/field/199112/order/desc/page/{page}/ajax/1/code/{code}"
+            async with session.get(page_url, headers=headers) as response:
+                page_html = await response.text()
+
+            try:
+                import pandas as pd
+                df = pd.read_html(page_html)[0]
+
+                for _, row in df.iterrows():
+                    records.append({
+                        "industry_code": code,
+                        "stock_code": str(row.get("代码", "")).zfill(6),
+                        "stock_name": row.get("名称", ""),
+                    })
+            except Exception as e:
+                logger.warning(f"Failed to parse industry member page: {e}")
+
+        return records
+
+    async def validate(self, data: list[Any]) -> list[Any]:
+        return [d for d in data if d.get("stock_code") and d.get("industry_entity_id")]
+
+    async def save(self, data: list[Any], progress: TaskProgress) -> int:
+        from openfinance.infrastructure.database import get_db
+        from openfinance.datacenter.models import EntityModel, RelationModel
+        from sqlalchemy import select, and_
+        import uuid
+
+        batch_size = progress.details.get("batch_size", 10)
+        saved = 0
+        skipped = 0
+        stocks_not_found = 0
+
+        async for db in get_db():
+            if db is None:
+                logger.warning("Database not available")
+                return 0
+
+            stock_cache = {}
+
+            for i in range(0, len(data), batch_size * 100):
+                batch = data[i:i + batch_size * 100]
+
+                for relation_data in batch:
+                    try:
+                        stock_code = relation_data["stock_code"]
+                        industry_entity_id = relation_data["industry_entity_id"]
+
+                        if stock_code not in stock_cache:
+                            existing = await db.execute(
+                                select(EntityModel).where(
+                                    and_(
+                                        EntityModel.code == stock_code,
+                                        EntityModel.entity_type == "stock",
+                                    )
+                                )
+                            )
+                            stock_entity = existing.scalar_one_or_none()
+                            if stock_entity:
+                                stock_cache[stock_code] = stock_entity.entity_id
+                            else:
+                                stock_cache[stock_code] = None
+
+                        stock_entity_id = stock_cache.get(stock_code)
+                        if not stock_entity_id:
+                            stocks_not_found += 1
+                            continue
+
+                        existing_rel = await db.execute(
+                            select(RelationModel).where(
+                                and_(
+                                    RelationModel.source_entity_id == stock_entity_id,
+                                    RelationModel.target_entity_id == industry_entity_id,
+                                    RelationModel.relation_type == "belongs_to",
+                                )
+                            )
+                        )
+                        existing_relation = existing_rel.scalar_one_or_none()
+
+                        if existing_relation:
+                            skipped += 1
+                            continue
+
+                        relation = RelationModel(
+                            id=str(uuid.uuid4()),
+                            relation_id=f"rel_{uuid.uuid4().hex[:8]}",
+                            source_entity_id=stock_entity_id,
+                            target_entity_id=industry_entity_id,
+                            relation_type="belongs_to",
+                            weight=relation_data.get("weight", 1.0),
+                            confidence=relation_data.get("confidence", 1.0),
+                            source=relation_data.get("source", "ths_industry_member"),
+                            properties=relation_data.get("properties", {}),
+                        )
+                        db.add(relation)
+                        saved += 1
+
+                    except Exception as e:
+                        logger.warning(f"Failed to save relation: {e}")
+
+                    progress.saved_records = saved + skipped
+
+                await db.commit()
+                logger.info(f"Synced batch {i // (batch_size * 100) + 1}: {saved} new relations, {skipped} existing, {stocks_not_found} stocks not found")
+
+            break
+
+        logger.info(f"Synced {saved} stock-industry relations from THS, skipped {skipped} existing, {stocks_not_found} stocks not found")
+        progress.details["saved"] = saved
+        progress.details["skipped"] = skipped
+        progress.details["stocks_not_found"] = stocks_not_found
+        return saved
+
+
 def register_additional_executors():
     """Register additional executors from predefined_tasks."""
     from .registry import TaskRegistry
-    
+
     executors = [
         StockBasicInfoExecutor(),
         StockDailyQuoteExecutor(),
@@ -1069,15 +1619,25 @@ def register_additional_executors():
         SyncStockEntitiesExecutor(),
         SyncIndustryEntitiesExecutor(),
         SyncConceptEntitiesExecutor(),
+        SyncStockIndustryRelationsExecutor(),
+        SyncStockConceptRelationsExecutor(),
+        SyncIndustryMemberRelationsExecutor(),
         IncomeStatementExecutor(),
         BalanceSheetExecutor(),
+        CashFlowStatementExecutor(),
         DividendDataExecutor(),
         FundamentalFactorComputeExecutor(),
     ]
-    
+
     for executor in executors:
         TaskRegistry.register(executor)
-    
+
+    try:
+        from .research_report_executors import register_research_report_executors
+        register_research_report_executors()
+    except ImportError as e:
+        logger.warning(f"Failed to register research report executors: {e}")
+
     logger.info(f"Registered {len(executors)} additional task executors")
 
 
@@ -1091,16 +1651,10 @@ def register_additional_executors():
     timeout=1800.0,
     parameters=[
         TaskParameter(
-            name="codes",
-            type="array",
+            name="date",
+            type="string",
             default=None,
-            description="股票代码列表，为空则采集全部股票",
-        ),
-        TaskParameter(
-            name="batch_size",
-            type="integer",
-            default=50,
-            description="每批处理的股票数量",
+            description="报告日期，格式YYYY-MM-DD或YYYYMMDD，为空则使用最近报告期",
         ),
     ],
     output=TaskOutput(
@@ -1112,28 +1666,16 @@ def register_additional_executors():
     tags=["fundamental", "financial", "income"],
 )
 class IncomeStatementExecutor(TaskExecutor[Any]):
-    """Executor for income statement data collection."""
+    """Executor for income statement data collection using batch collector."""
     
     def __init__(self):
-        from ..collector.implementations.fundamental_collectors import IncomeStatementCollector
-        self._collector_class = IncomeStatementCollector
+        from ..collector.implementations.financial_statement_collectors import BatchIncomeStatementCollector
+        self._collector_class = BatchIncomeStatementCollector
     
     async def collect(self, params: dict[str, Any], progress: TaskProgress) -> list[Any]:
-        codes = params.get("codes")
-        batch_size = params.get("batch_size", 50)
+        date = params.get("date")
         
-        if not codes:
-            from ..persistence import persistence
-            async with persistence.session_maker() as session:
-                from sqlalchemy import text
-                result = await session.execute(text("""
-                    SELECT DISTINCT code FROM openfinance.stock_basic
-                    WHERE LENGTH(code) = 6
-                    ORDER BY code
-                """))
-                codes = [row[0] for row in result.fetchall()]
-        
-        progress.total_records = len(codes)
+        progress.total_records = 5000
         progress.details["source"] = "eastmoney"
         
         collector = self._collector_class()
@@ -1141,16 +1683,9 @@ class IncomeStatementExecutor(TaskExecutor[Any]):
         
         all_data = []
         try:
-            for i in range(0, len(codes), batch_size):
-                batch = codes[i:i + batch_size]
-                for code in batch:
-                    try:
-                        records = await collector._collect(code=code)
-                        all_data.extend(records)
-                    except Exception as e:
-                        logger.debug(f"Failed to collect income statement for {code}: {e}")
-                    progress.processed_records = min(i + batch_size, len(codes))
-                await asyncio.sleep(0.1)
+            records = await collector._collect(date=date)
+            all_data.extend(records)
+            progress.processed_records = len(all_data)
         finally:
             await collector.stop()
         
@@ -1161,8 +1696,77 @@ class IncomeStatementExecutor(TaskExecutor[Any]):
     
     async def save(self, data: list[Any], progress: TaskProgress) -> int:
         from ..persistence import persistence
+        from datetime import datetime
         
-        return await persistence.save_orm("income_statement", data)
+        if not data:
+            return 0
+        
+        saved = 0
+        async with persistence.session_maker() as session:
+            from sqlalchemy import text
+            try:
+                for item in data:
+                    if isinstance(item, dict):
+                        report_date = item.get("report_date")
+                        if isinstance(report_date, str):
+                            try:
+                                report_date = datetime.strptime(report_date.split()[0], "%Y-%m-%d").date()
+                            except ValueError:
+                                continue
+                        
+                        code = item.get("code")
+                        
+                        await session.execute(text("""
+                            DELETE FROM openfinance.income_statement 
+                            WHERE code = :code AND report_date = :report_date
+                        """), {"code": code, "report_date": report_date})
+                        
+                        params = {
+                            "code": code,
+                            "report_date": report_date,
+                            "total_revenue": item.get("total_revenue"),
+                            "operating_revenue": item.get("operating_revenue"),
+                            "total_operating_cost": item.get("total_operating_cost"),
+                            "cost_of_goods_sold": item.get("cost_of_goods_sold"),
+                            "selling_expenses": item.get("selling_expenses"),
+                            "admin_expenses": item.get("admin_expenses"),
+                            "rd_expenses": item.get("rd_expenses"),
+                            "finance_expenses": item.get("finance_expenses"),
+                            "operating_profit": item.get("operating_profit"),
+                            "total_profit": item.get("total_profit"),
+                            "net_profit": item.get("net_profit"),
+                            "net_profit_attr_parent": item.get("net_profit_attr_parent"),
+                            "income_tax": item.get("income_tax"),
+                            "basic_eps": item.get("basic_eps"),
+                        }
+                        
+                        await session.execute(text("""
+                            INSERT INTO openfinance.income_statement 
+                            (code, report_date, total_revenue, operating_revenue, 
+                             total_operating_cost, cost_of_goods_sold, selling_expenses,
+                             admin_expenses, rd_expenses, finance_expenses,
+                             operating_profit, total_profit, net_profit, net_profit_attr_parent,
+                             income_tax, basic_eps)
+                            VALUES 
+                            (:code, :report_date, :total_revenue, :operating_revenue,
+                             :total_operating_cost, :cost_of_goods_sold, :selling_expenses,
+                             :admin_expenses, :rd_expenses, :finance_expenses,
+                             :operating_profit, :total_profit, :net_profit, :net_profit_attr_parent,
+                             :income_tax, :basic_eps)
+                        """), params)
+                        saved += 1
+                    else:
+                        session.add(item)
+                        saved += 1
+                
+                await session.commit()
+                logger.info(f"Saved {saved} income statement records")
+            except Exception as e:
+                await session.rollback()
+                logger.error(f"Failed to save income statement data: {e}")
+                raise
+        
+        return saved
 
 
 @task_executor(
@@ -1175,16 +1779,10 @@ class IncomeStatementExecutor(TaskExecutor[Any]):
     timeout=1800.0,
     parameters=[
         TaskParameter(
-            name="codes",
-            type="array",
+            name="date",
+            type="string",
             default=None,
-            description="股票代码列表，为空则采集全部股票",
-        ),
-        TaskParameter(
-            name="batch_size",
-            type="integer",
-            default=50,
-            description="每批处理的股票数量",
+            description="报告日期，格式YYYY-MM-DD或YYYYMMDD，为空则使用最近报告期",
         ),
     ],
     output=TaskOutput(
@@ -1196,28 +1794,16 @@ class IncomeStatementExecutor(TaskExecutor[Any]):
     tags=["fundamental", "financial", "balance"],
 )
 class BalanceSheetExecutor(TaskExecutor[Any]):
-    """Executor for balance sheet data collection."""
+    """Executor for balance sheet data collection using batch collector."""
     
     def __init__(self):
-        from ..collector.implementations.fundamental_collectors import BalanceSheetCollector
-        self._collector_class = BalanceSheetCollector
+        from ..collector.implementations.financial_statement_collectors import BatchBalanceSheetCollector
+        self._collector_class = BatchBalanceSheetCollector
     
     async def collect(self, params: dict[str, Any], progress: TaskProgress) -> list[Any]:
-        codes = params.get("codes")
-        batch_size = params.get("batch_size", 50)
+        date = params.get("date")
         
-        if not codes:
-            from ..persistence import persistence
-            async with persistence.session_maker() as session:
-                from sqlalchemy import text
-                result = await session.execute(text("""
-                    SELECT DISTINCT code FROM openfinance.stock_basic
-                    WHERE LENGTH(code) = 6
-                    ORDER BY code
-                """))
-                codes = [row[0] for row in result.fetchall()]
-        
-        progress.total_records = len(codes)
+        progress.total_records = 5000
         progress.details["source"] = "eastmoney"
         
         collector = self._collector_class()
@@ -1225,16 +1811,9 @@ class BalanceSheetExecutor(TaskExecutor[Any]):
         
         all_data = []
         try:
-            for i in range(0, len(codes), batch_size):
-                batch = codes[i:i + batch_size]
-                for code in batch:
-                    try:
-                        records = await collector._collect(code=code)
-                        all_data.extend(records)
-                    except Exception as e:
-                        logger.debug(f"Failed to collect balance sheet for {code}: {e}")
-                    progress.processed_records = min(i + batch_size, len(codes))
-                await asyncio.sleep(0.1)
+            records = await collector._collect(date=date)
+            all_data.extend(records)
+            progress.processed_records = len(all_data)
         finally:
             await collector.stop()
         
@@ -1245,8 +1824,189 @@ class BalanceSheetExecutor(TaskExecutor[Any]):
     
     async def save(self, data: list[Any], progress: TaskProgress) -> int:
         from ..persistence import persistence
+        from datetime import datetime
         
-        return await persistence.save_orm("balance_sheet", data)
+        if not data:
+            return 0
+        
+        saved = 0
+        async with persistence.session_maker() as session:
+            from sqlalchemy import text
+            try:
+                for item in data:
+                    if isinstance(item, dict):
+                        report_date = item.get("report_date")
+                        if isinstance(report_date, str):
+                            try:
+                                report_date = datetime.strptime(report_date.split()[0], "%Y-%m-%d").date()
+                            except ValueError:
+                                continue
+                        
+                        code = item.get("code")
+                        
+                        await session.execute(text("""
+                            DELETE FROM openfinance.balance_sheet 
+                            WHERE code = :code AND report_date = :report_date
+                        """), {"code": code, "report_date": report_date})
+                        
+                        params = {
+                            "code": code,
+                            "report_date": report_date,
+                            "total_assets": item.get("total_assets"),
+                            "total_current_assets": item.get("total_current_assets"),
+                            "total_non_current_assets": item.get("total_non_current_assets"),
+                            "cash": item.get("cash"),
+                            "accounts_receivable": item.get("accounts_receivable"),
+                            "inventory": item.get("inventory"),
+                            "fixed_assets": item.get("fixed_assets"),
+                            "intangible_assets": item.get("intangible_assets"),
+                            "total_liabilities": item.get("total_liabilities"),
+                            "total_current_liabilities": item.get("total_current_liabilities"),
+                            "total_non_current_liabilities": item.get("total_non_current_liabilities"),
+                            "short_term_debt": item.get("short_term_debt"),
+                            "long_term_debt": item.get("long_term_debt"),
+                            "accounts_payable": item.get("accounts_payable"),
+                            "total_equity": item.get("total_equity"),
+                            "paid_in_capital": item.get("paid_in_capital"),
+                            "retained_earnings": item.get("retained_earnings"),
+                        }
+                        
+                        await session.execute(text("""
+                            INSERT INTO openfinance.balance_sheet 
+                            (code, report_date, total_assets, total_current_assets, total_non_current_assets,
+                             cash, accounts_receivable, inventory, fixed_assets, intangible_assets,
+                             total_liabilities, total_current_liabilities, total_non_current_liabilities,
+                             short_term_debt, long_term_debt, accounts_payable, total_equity,
+                             paid_in_capital, retained_earnings)
+                            VALUES 
+                            (:code, :report_date, :total_assets, :total_current_assets, :total_non_current_assets,
+                             :cash, :accounts_receivable, :inventory, :fixed_assets, :intangible_assets,
+                             :total_liabilities, :total_current_liabilities, :total_non_current_liabilities,
+                             :short_term_debt, :long_term_debt, :accounts_payable, :total_equity,
+                             :paid_in_capital, :retained_earnings)
+                        """), params)
+                        saved += 1
+                    else:
+                        session.add(item)
+                        saved += 1
+                
+                await session.commit()
+                logger.info(f"Saved {saved} balance sheet records")
+            except Exception as e:
+                await session.rollback()
+                logger.error(f"Failed to save balance sheet data: {e}")
+                raise
+        
+        return saved
+
+
+@task_executor(
+    task_type="cash_flow_statement",
+    name="现金流量表数据采集",
+    description="从东方财富采集现金流量表数据（经营现金流、投资现金流、筹资现金流等）",
+    category=TaskCategory.FUNDAMENTAL,
+    source="eastmoney",
+    priority=TaskPriority.HIGH,
+    timeout=1800.0,
+    parameters=[
+        TaskParameter(
+            name="date",
+            type="string",
+            default=None,
+            description="报告日期，格式YYYY-MM-DD或YYYYMMDD，为空则使用最近报告期",
+        ),
+    ],
+    output=TaskOutput(
+        data_type="cash_flow",
+        table_name="cash_flow",
+        description="现金流量表数据",
+        fields=["code", "report_date", "operating_cash_flow", "investing_cash_flow", "financing_cash_flow"],
+    ),
+    tags=["fundamental", "financial", "cashflow"],
+)
+class CashFlowStatementExecutor(TaskExecutor[Any]):
+    """Executor for cash flow statement data collection using batch collector."""
+    
+    def __init__(self):
+        from ..collector.implementations.financial_statement_collectors import BatchCashFlowStatementCollector
+        self._collector_class = BatchCashFlowStatementCollector
+    
+    async def collect(self, params: dict[str, Any], progress: TaskProgress) -> list[Any]:
+        date = params.get("date")
+        
+        progress.total_records = 5000
+        progress.details["source"] = "eastmoney"
+        
+        collector = self._collector_class()
+        await collector.start()
+        
+        all_data = []
+        try:
+            records = await collector._collect(date=date)
+            all_data.extend(records)
+            progress.processed_records = len(all_data)
+        finally:
+            await collector.stop()
+        
+        return all_data
+    
+    async def validate(self, data: list[Any]) -> list[Any]:
+        return [d for d in data if d.get("code") and d.get("report_date")]
+    
+    async def save(self, data: list[Any], progress: TaskProgress) -> int:
+        from ..persistence import persistence
+        from datetime import datetime
+        
+        if not data:
+            return 0
+        
+        saved = 0
+        async with persistence.session_maker() as session:
+            from sqlalchemy import text
+            try:
+                for item in data:
+                    if isinstance(item, dict):
+                        report_date = item.get("report_date")
+                        if isinstance(report_date, str):
+                            try:
+                                report_date = datetime.strptime(report_date.split()[0], "%Y-%m-%d").date()
+                            except ValueError:
+                                continue
+                        
+                        code = item.get("code")
+                        
+                        await session.execute(text("""
+                            DELETE FROM openfinance.cash_flow 
+                            WHERE code = :code AND report_date = :report_date
+                        """), {"code": code, "report_date": report_date})
+                        
+                        params = {
+                            "code": code,
+                            "report_date": report_date,
+                            "net_operating_cash_flow": item.get("net_operating_cash_flow"),
+                            "net_investing_cash_flow": item.get("net_investing_cash_flow"),
+                            "net_financing_cash_flow": item.get("net_financing_cash_flow"),
+                        }
+                        
+                        await session.execute(text("""
+                            INSERT INTO openfinance.cash_flow 
+                            (code, report_date, net_operating_cash_flow, net_investing_cash_flow, net_financing_cash_flow)
+                            VALUES 
+                            (:code, :report_date, :net_operating_cash_flow, :net_investing_cash_flow, :net_financing_cash_flow)
+                        """), params)
+                        saved += 1
+                    else:
+                        session.add(item)
+                        saved += 1
+                
+                await session.commit()
+                logger.info(f"Saved {saved} cash flow records")
+            except Exception as e:
+                await session.rollback()
+                logger.error(f"Failed to save cash flow data: {e}")
+                raise
+        
+        return saved
 
 
 @task_executor(

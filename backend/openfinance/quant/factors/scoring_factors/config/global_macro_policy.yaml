@@ -1,0 +1,61 @@
+version: "1.0"
+metadata:
+  namespace: openfinance
+  description: 全球宏观政策因子定义
+
+factor_id: factor_global_macro_policy
+name: Global Macro Policy Score
+display_name: 全球宏观政策评分
+description: 评估美联储政策空间，包括联邦基金利率、利率变动方向、利率预期
+factor_type: macro
+category: policy
+version: "1.0.0"
+author: system
+tags: [macro, global, fed, policy]
+
+parameters:
+  weight_fed_funds_rate:
+    type: float
+    default: 0.4
+    description: 联邦基金利率权重
+  weight_rate_direction:
+    type: float
+    default: 0.3
+    description: 利率变动方向权重
+  weight_rate_expectation:
+    type: float
+    default: 0.3
+    description: 利率预期权重
+
+indicators:
+  FED_FUNDS_RATE:
+    name: 联邦基金利率
+    weight: 0.4
+    optimal_range: [2.0, 4.0]
+    score_formula: "max(0, 100 - abs(value - 3.0) * 15)"
+    data_source: macro_economic
+    unit: "%"
+    
+  RATE_DIRECTION:
+    name: 利率变动方向
+    weight: 0.3
+    value_map:
+      cut: 80
+      hold: 60
+      hike: 40
+    data_source: macro_economic
+    
+  RATE_EXPECTATION:
+    name: 利率预期
+    weight: 0.3
+    score_formula: "70 if expected < current else 50"
+    data_source: macro_economic
+
+output:
+  type: float
+  range: [0, 100]
+  normalize_method: none
+  
+calculation:
+  method: weighted_average
+  description: 加权平均各指标得分

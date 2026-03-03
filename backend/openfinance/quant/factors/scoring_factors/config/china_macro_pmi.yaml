@@ -1,0 +1,40 @@
+version: "1.0"
+metadata:
+  namespace: openfinance
+  description: 中国宏观PMI因子定义
+
+factor_id: factor_china_macro_pmi
+name: China Macro PMI Score
+display_name: 中国宏观PMI评分
+description: 评估中国制造业景气度，包括制造业PMI、非制造业PMI、新订单指数
+factor_type: macro
+category: economic
+version: "1.0.0"
+author: system
+tags: [macro, china, pmi, manufacturing]
+
+indicators:
+  PMI_MANUFACTURING:
+    name: 制造业PMI
+    weight: 0.4
+    optimal_range: [50, 55]
+    score_formula: "max(0, (value - 45) * 4)"
+    data_source: macro_economic
+    
+  PMI_NON_MANUFACTURING:
+    name: 非制造业PMI
+    weight: 0.3
+    optimal_range: [52, 58]
+    score_formula: "max(0, (value - 45) * 3.5)"
+    data_source: macro_economic
+    
+  NEW_ORDERS_INDEX:
+    name: 新订单指数
+    weight: 0.3
+    optimal_range: [50, 55]
+    score_formula: "max(0, (value - 45) * 4)"
+    data_source: macro_economic
+
+output:
+  type: float
+  range: [0, 100]

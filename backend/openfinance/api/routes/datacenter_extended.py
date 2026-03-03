@@ -587,3 +587,496 @@ async def list_stocks(
             "limit": limit,
             "offset": offset,
         }
+
+
+# ==================== Industry & Company Data ====================
+
+@router.get("/industries")
+async def get_industries(
+    industry_type: str = "industry",
+) -> dict[str, Any]:
+    """
+    Get industry/concept/region list from EastMoney.
+    
+    Args:
+        industry_type: Type of classification - "industry", "concept", or "region"
+    """
+    from openfinance.datacenter.collector.implementations.industry_collectors import (
+        EastMoneyIndustryListCollector,
+    )
+    from openfinance.datacenter.collector.core.base_collector import CollectionStatus
+    
+    collector = EastMoneyIndustryListCollector()
+    
+    try:
+        result = await collector.collect(industry_type=industry_type)
+        success = result.status == CollectionStatus.COMPLETED
+        records = result.data if success else []
+        return {
+            "success": success,
+            "industry_type": industry_type,
+            "industries": records,
+            "total": len(records) if records else 0,
+            "error": result.error_message if not success else None,
+        }
+    except Exception as e:
+        logger.error(f"Failed to get industries: {e}")
+        return {
+            "success": False,
+            "error": str(e),
+            "industries": [],
+            "total": 0,
+        }
+
+
+@router.get("/industries/{code}/members")
+async def get_industry_members(
+    code: str,
+    industry_type: str = "industry",
+) -> dict[str, Any]:
+    """
+    Get member stocks of an industry/concept.
+    
+    Args:
+        code: Industry/concept code (e.g., "BK0477" for 酒店餐饮)
+        industry_type: Type - "industry" or "concept"
+    """
+    from openfinance.datacenter.collector.implementations.industry_collectors import (
+        EastMoneyIndustryMemberCollector,
+    )
+    from openfinance.datacenter.collector.core.base_collector import CollectionStatus
+    
+    collector = EastMoneyIndustryMemberCollector()
+    
+    try:
+        result = await collector.collect(code=code, industry_type=industry_type)
+        success = result.status == CollectionStatus.COMPLETED
+        records = result.data if success else []
+        return {
+            "success": success,
+            "industry_code": code,
+            "industry_type": industry_type,
+            "members": records,
+            "total": len(records) if records else 0,
+            "error": result.error_message if not success else None,
+        }
+    except Exception as e:
+        logger.error(f"Failed to get industry members: {e}")
+        return {
+            "success": False,
+            "error": str(e),
+            "members": [],
+            "total": 0,
+        }
+
+
+@router.get("/stocks/{code}/industry")
+async def get_stock_industry(code: str) -> dict[str, Any]:
+    """
+    Get industry classification for a specific stock.
+    
+    Args:
+        code: Stock code (e.g., "600519" for 贵州茅台)
+    """
+    from openfinance.datacenter.collector.implementations.industry_collectors import (
+        EastMoneyStockIndustryCollector,
+    )
+    from openfinance.datacenter.collector.core.base_collector import CollectionStatus
+    
+    collector = EastMoneyStockIndustryCollector()
+    
+    try:
+        result = await collector.collect(code=code)
+        success = result.status == CollectionStatus.COMPLETED
+        records = result.data if success else []
+        return {
+            "success": success,
+            "stock_code": code,
+            "industries": records,
+            "error": result.error_message if not success else None,
+        }
+    except Exception as e:
+        logger.error(f"Failed to get stock industry: {e}")
+        return {
+            "success": False,
+            "error": str(e),
+            "industries": [],
+        }
+
+
+@router.get("/stocks/{code}/profile")
+async def get_stock_profile(code: str) -> dict[str, Any]:
+    """
+    Get detailed company profile from EastMoney.
+    
+    Args:
+        code: Stock code (e.g., "600519" for 贵州茅台)
+    """
+    import aiohttp
+    
+    secid = ""
+    if code.startswith("6"):
+        secid = f"SH{code}"
+    elif code.startswith(("0", "3")):
+        secid = f"SZ{code}"
+    elif code.startswith(("4", "8")):
+        secid = f"BJ{code}"
+    else:
+        return {
+            "success": False,
+            "error": "Invalid stock code",
+            "profile": None,
+        }
+    
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
+        "Accept": "application/json",
+        "Referer": "https://data.eastmoney.com/",
+    }
+    
+    url = "https://emweb.eastmoney.com/PC_HSF10/CompanySurvey/CompanySurveyAjax"
+    params = {"code": secid}
+    
+    try:
+        timeout = aiohttp.ClientTimeout(total=30)
+        async with aiohttp.ClientSession(headers=headers, timeout=timeout) as session:
+            async with session.get(url, params=params) as resp:
+                data = await resp.json()
+        
+        jbzl = data.get("jbzl", {})
+        
+        profile = {
+            "code": code,
+            "name": jbzl.get("gsmc"),
+            "industry": jbzl.get("hymc"),
+            "sector": jbzl.get("sshy"),
+            "list_date": jbzl.get("ssrq"),
+            "credit_code": jbzl.get("xydm"),
+            "province": jbzl.get("ssdq"),
+            "city": jbzl.get("sssf"),
+            "website": jbzl.get("gswz"),
+            "employees": jbzl.get("ygrs"),
+            "main_business": jbzl.get("jyfw"),
+            "business_scope": jbzl.get("jyfw"),
+            "chairman": jbzl.get("frdb"),
+            "secretary": jbzl.get("dm"),
+            "registered_capital": jbzl.get("zczb"),
+            "registered_address": jbzl.get("zcdz"),
+            "office_address": jbzl.get("bgdz"),
+        }
+        
+        return {
+            "success": True,
+            "profile": profile,
+        }
+    except Exception as e:
+        logger.error(f"Failed to get stock profile: {e}")
+        return {
+            "success": False,
+            "error": str(e),
+            "profile": None,
+        }
+
+
+@router.get("/stocks/{code}/concepts")
+async def get_stock_concepts(code: str) -> dict[str, Any]:
+    """
+    Get concept tags for a specific stock.
+    
+    Args:
+        code: Stock code (e.g., "600519" for 贵州茅台)
+    """
+    import aiohttp
+    
+    market = "1" if code.startswith("6") else "0"
+    secid = f"{market}.{code}"
+    
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
+        "Accept": "application/json",
+        "Referer": "https://data.eastmoney.com/",
+    }
+    
+    url = "https://push2.eastmoney.com/api/qt/slist/get"
+    params = {
+        "np": 1,
+        "ut": "b2884a393a59ad64002292a3e90d46a5",
+        "fltt": 2,
+        "invt": 2,
+        "fields": "f12,f14",
+        "secid": secid,
+        "spt": 3,
+    }
+    
+    try:
+        timeout = aiohttp.ClientTimeout(total=30)
+        async with aiohttp.ClientSession(headers=headers, timeout=timeout) as session:
+            async with session.get(url, params=params) as resp:
+                data = await resp.json()
+        
+        concepts = []
+        if data.get("data") and data["data"].get("diff"):
+            for item in data["data"]["diff"]:
+                concepts.append({
+                    "code": item.get("f12"),
+                    "name": item.get("f14"),
+                })
+        
+        return {
+            "success": True,
+            "stock_code": code,
+            "concepts": concepts,
+            "total": len(concepts),
+        }
+    except Exception as e:
+        logger.error(f"Failed to get stock concepts: {e}")
+        return {
+            "success": False,
+            "error": str(e),
+            "concepts": [],
+            "total": 0,
+        }
+
+
+# ==================== Knowledge Graph Sync ====================
+
+@router.post("/knowledge-graph/sync")
+async def sync_knowledge_graph(
+    sync_type: str = "all",
+) -> dict[str, Any]:
+    """
+    Sync company, industry, and concept data to knowledge graph.
+    
+    Args:
+        sync_type: Type of sync - "all", "industries", or "concepts"
+    
+    This endpoint:
+    1. Fetches industry/concept lists from EastMoney
+    2. Fetches member stocks for each industry/concept
+    3. Creates entities in knowledge graph (companies, industries, concepts)
+    4. Creates relations (company -> belongs_to_industry, company -> has_concept)
+    """
+    from openfinance.datacenter.collector.implementations.knowledge_graph_sync import (
+        KnowledgeGraphSynchronizer,
+    )
+    
+    synchronizer = KnowledgeGraphSynchronizer(batch_size=100, max_concurrent=5)
+    
+    try:
+        if sync_type == "all":
+            result = await synchronizer.sync_all()
+        elif sync_type == "industries":
+            result = await synchronizer.sync_all_industries()
+        elif sync_type == "concepts":
+            result = await synchronizer.sync_all_concepts()
+        else:
+            return {
+                "success": False,
+                "error": f"Invalid sync_type: {sync_type}. Must be 'all', 'industries', or 'concepts'",
+            }
+        
+        return {
+            "success": True,
+            "sync_type": sync_type,
+            "result": result,
+        }
+    except Exception as e:
+        logger.error(f"Knowledge graph sync failed: {e}")
+        return {
+            "success": False,
+            "error": str(e),
+        }
+    finally:
+        await synchronizer.close()
+
+
+@router.get("/knowledge-graph/entities")
+async def get_knowledge_graph_entities(
+    entity_type: str | None = None,
+    limit: int = 100,
+    offset: int = 0,
+) -> dict[str, Any]:
+    """
+    Get entities from knowledge graph.
+    
+    Args:
+        entity_type: Filter by entity type (company, industry, concept)
+        limit: Max number of entities to return
+        offset: Offset for pagination
+    """
+    try:
+        from sqlalchemy import select, func
+        from openfinance.datacenter.models import EntityModel
+        from openfinance.infrastructure.database.database import async_session_maker
+        
+        async with async_session_maker() as session:
+            query = select(EntityModel)
+            
+            if entity_type:
+                query = query.where(EntityModel.entity_type == entity_type)
+            
+            query = query.order_by(EntityModel.created_at.desc()).limit(limit).offset(offset)
+            
+            result = await session.execute(query)
+            entities = result.scalars().all()
+            
+            count_query = select(func.count()).select_from(EntityModel)
+            if entity_type:
+                count_query = count_query.where(EntityModel.entity_type == entity_type)
+            
+            total = await session.scalar(count_query)
+            
+            return {
+                "success": True,
+                "entities": [
+                    {
+                        "entity_id": e.entity_id,
+                        "entity_type": e.entity_type,
+                        "name": e.name,
+                        "code": e.code,
+                        "industry": e.industry,
+                        "created_at": e.created_at.isoformat() if e.created_at else None,
+                    }
+                    for e in entities
+                ],
+                "total": total or 0,
+                "limit": limit,
+                "offset": offset,
+            }
+    except Exception as e:
+        logger.warning(f"Database not available: {e}")
+        return {
+            "success": False,
+            "error": str(e),
+            "entities": [],
+            "total": 0,
+        }
+
+
+@router.get("/knowledge-graph/relations")
+async def get_knowledge_graph_relations(
+    relation_type: str | None = None,
+    source_entity_id: str | None = None,
+    target_entity_id: str | None = None,
+    limit: int = 100,
+    offset: int = 0,
+) -> dict[str, Any]:
+    """
+    Get relations from knowledge graph.
+    
+    Args:
+        relation_type: Filter by relation type (belongs_to_industry, has_concept)
+        source_entity_id: Filter by source entity
+        target_entity_id: Filter by target entity
+        limit: Max number of relations to return
+        offset: Offset for pagination
+    """
+    try:
+        from sqlalchemy import select, func
+        from openfinance.datacenter.models import RelationModel, EntityModel
+        from openfinance.infrastructure.database.database import async_session_maker
+        
+        async with async_session_maker() as session:
+            query = select(RelationModel)
+            
+            if relation_type:
+                query = query.where(RelationModel.relation_type == relation_type)
+            if source_entity_id:
+                query = query.where(RelationModel.source_entity_id == source_entity_id)
+            if target_entity_id:
+                query = query.where(RelationModel.target_entity_id == target_entity_id)
+            
+            query = query.order_by(RelationModel.created_at.desc()).limit(limit).offset(offset)
+            
+            result = await session.execute(query)
+            relations = result.scalars().all()
+            
+            count_query = select(func.count()).select_from(RelationModel)
+            if relation_type:
+                count_query = count_query.where(RelationModel.relation_type == relation_type)
+            if source_entity_id:
+                count_query = count_query.where(RelationModel.source_entity_id == source_entity_id)
+            if target_entity_id:
+                count_query = count_query.where(RelationModel.target_entity_id == target_entity_id)
+            
+            total = await session.scalar(count_query)
+            
+            return {
+                "success": True,
+                "relations": [
+                    {
+                        "relation_id": r.relation_id,
+                        "source_entity_id": r.source_entity_id,
+                        "target_entity_id": r.target_entity_id,
+                        "relation_type": r.relation_type,
+                        "properties": r.properties,
+                        "created_at": r.created_at.isoformat() if r.created_at else None,
+                    }
+                    for r in relations
+                ],
+                "total": total or 0,
+                "limit": limit,
+                "offset": offset,
+            }
+    except Exception as e:
+        logger.warning(f"Database not available: {e}")
+        return {
+            "success": False,
+            "error": str(e),
+            "relations": [],
+            "total": 0,
+        }
+
+
+@router.get("/knowledge-graph/company/{code}/relations")
+async def get_company_relations(code: str) -> dict[str, Any]:
+    """
+    Get all relations for a specific company from knowledge graph.
+    
+    Args:
+        code: Stock code (e.g., "600519")
+    """
+    try:
+        from sqlalchemy import select
+        from openfinance.datacenter.models import RelationModel, EntityModel
+        from openfinance.infrastructure.database.database import async_session_maker
+        
+        company_entity_id = f"company_{code}"
+        
+        async with async_session_maker() as session:
+            outgoing_query = select(RelationModel).where(
+                RelationModel.source_entity_id == company_entity_id
+            )
+            outgoing_result = await session.execute(outgoing_query)
+            outgoing_relations = outgoing_result.scalars().all()
+            
+            relations = []
+            for r in outgoing_relations:
+                target_query = select(EntityModel).where(
+                    EntityModel.entity_id == r.target_entity_id
+                )
+                target_result = await session.execute(target_query)
+                target_entity = target_result.scalar_one_or_none()
+                
+                relations.append({
+                    "relation_type": r.relation_type,
+                    "target_entity_id": r.target_entity_id,
+                    "target_name": target_entity.name if target_entity else None,
+                    "target_type": target_entity.entity_type if target_entity else None,
+                })
+            
+            return {
+                "success": True,
+                "company_code": code,
+                "company_entity_id": company_entity_id,
+                "relations": relations,
+                "total": len(relations),
+            }
+    except Exception as e:
+        logger.warning(f"Database not available: {e}")
+        return {
+            "success": False,
+            "error": str(e),
+            "relations": [],
+            "total": 0,
+        }

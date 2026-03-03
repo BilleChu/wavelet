@@ -489,6 +489,62 @@ export interface MonteCarloAPIRequest {
   confidence_level?: number
 }
 
+export interface BacktestConfigOptions {
+  benchmarks: Array<{ code: string; name: string }>
+  default_params: {
+    initial_capital: number
+    commission_rate: number
+    slippage: number
+    start_date: string
+    end_date: string
+  }
+  date_presets: Array<{ label: string; days: number }>
+}
+
+export interface BacktestRunRequest {
+  strategy_id: string
+  start_date: string
+  end_date: string
+  initial_capital?: number
+  benchmark?: string
+  commission_rate?: number
+  slippage?: number
+  stock_codes?: string[]
+}
+
+export interface BacktestStatusResponse {
+  backtest_id: string
+  status: string
+  progress: number
+  message: string
+  created_at: string
+  completed_at?: string
+}
+
+export interface BacktestReportResponse {
+  backtest_id: string
+  status: string
+  strategy_id?: string
+  strategy_name?: string
+  config?: BacktestConfig
+  report?: Record<string, unknown>
+  error?: string
+}
+
+export interface BacktestHistoryItem {
+  backtest_id: string
+  status: string
+  created_at: string
+  completed_at?: string
+  summary?: {
+    total_return: number
+    annual_return: number
+    sharpe_ratio: number
+    max_drawdown: number
+    grade: string
+  }
+}
+
 class QuantService {
   private baseUrl = '/api/quant'
 
@@ -675,6 +731,59 @@ class QuantService {
   }> {
     const response = await apiClient.get(`${this.baseUrl}/factors/${factorId}/code`)
     return response.data
+  }
+
+  async getBacktestConfigs(): Promise<BacktestConfigOptions> {
+    const response = await apiClient.get<BacktestConfigOptions>(`${this.baseUrl}/backtest/configs`)
+    return response.data
+  }
+
+  async runBacktestAsync(config: BacktestRunRequest): Promise<{ backtest_id: string; status: string; message: string }> {
+    const response = await apiClient.post<{ backtest_id: string; status: string; message: string }>(
+      `${this.baseUrl}/backtest/run`,
+      config
+    )
+    return response.data
+  }
+
+  async getBacktestStatus(backtestId: string): Promise<BacktestStatusResponse> {
+    const response = await apiClient.get<BacktestStatusResponse>(`${this.baseUrl}/backtest/${backtestId}/status`)
+    return response.data
+  }
+
+  async getBacktestReport(backtestId: string): Promise<BacktestReportResponse> {
+    const response = await apiClient.get<BacktestReportResponse>(`${this.baseUrl}/backtest/${backtestId}/report`)
+    return response.data
+  }
+
+  async getBacktestHistory(limit: number = 10): Promise<{ total: number; backtests: BacktestHistoryItem[] }> {
+    const response = await apiClient.get<{ total: number; backtests: BacktestHistoryItem[] }>(
+      `${this.baseUrl}/backtest/history`,
+      { params: { limit } }
+    )
+    return response.data
+  }
+
+  async pollBacktestStatus(
+    backtestId: string,
+    onProgress: (status: BacktestStatusResponse) => void,
+    intervalMs: number = 2000,
+    maxAttempts: number = 60
+  ): Promise<BacktestStatusResponse> {
+    let attempts = 0
+    while (attempts < maxAttempts) {
+      const status = await this.getBacktestStatus(backtestId)
+      onProgress(status)
+      
+      if (status.status === 'completed' || status.status === 'failed') {
+        return status
+      }
+      
+      await new Promise(resolve => setTimeout(resolve, intervalMs))
+      attempts++
+    }
+    
+    throw new Error('Backtest polling timeout')
   }
 }
 

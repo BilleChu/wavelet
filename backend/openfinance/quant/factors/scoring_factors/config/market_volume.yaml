@@ -1,0 +1,50 @@
+version: "1.0"
+metadata:
+  namespace: openfinance
+  description: 市场成交量因子定义
+
+factor_id: factor_market_volume
+name: Market Volume Score
+display_name: 市场成交量评分
+description: 评估市场成交量，包括成交量趋势、量价关系、换手率、市场情绪指数
+factor_type: technical
+category: liquidity
+version: "1.0.0"
+author: system
+tags: [market, volume, turnover]
+
+indicators:
+  VOLUME_TREND:
+    name: 成交量趋势
+    weight: 0.3
+    score_formula: "min(100, max(0, 50 + (vol / ma_vol - 1) * 50))"
+    data_source: market_statistics
+    
+  VOLUME_PRICE_TREND:
+    name: 量价关系
+    weight: 0.3
+    value_map:
+      up_with_volume: 85
+      up_with_low_volume: 60
+      down_with_volume: 35
+      down_with_low_volume: 50
+    data_source: market_statistics
+    description: 量价齐升=85, 缩量上涨=60, 放量下跌=35, 缩量下跌=50
+    
+  TURNOVER_RATE:
+    name: 换手率
+    weight: 0.2
+    optimal_range: [2.0, 5.0]
+    score_formula: "max(0, 100 - abs(value - 3.5) * 15)"
+    data_source: market_statistics
+    unit: "%"
+    
+  MARKET_SENTIMENT_INDEX:
+    name: 市场情绪指数
+    weight: 0.2
+    score_formula: "value"
+    data_source: market_statistics
+
+output:
+  type: float
+  range: [0, 100]

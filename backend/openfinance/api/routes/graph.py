@@ -199,6 +199,7 @@ async def get_default_graph(
 async def get_entity_graph(
     entity_id: str,
     depth: int = Query(1, ge=1, le=3),
+    use_neo4j: bool = Query(True, description="Use Neo4j for graph traversal if available"),
     db: AsyncSession = Depends(get_db),
 ) -> GraphData:
     center_query = select(EntityModel).where(EntityModel.entity_id == entity_id)
@@ -207,6 +208,74 @@ async def get_entity_graph(
     
     if not center:
         raise HTTPException(status_code=404, detail=f"Entity not found: {entity_id}")
+    
+    if use_neo4j:
+        import os
+        try:
+            from neo4j import AsyncGraphDatabase
+            
+            neo4j_uri = os.getenv("NEO4J_URI", "bolt://localhost:7687")
+            neo4j_user = os.getenv("NEO4J_USER", "neo4j")
+            neo4j_password = os.getenv("NEO4J_PASSWORD", "openfinance123")
+            
+            driver = AsyncGraphDatabase.driver(
+                neo4j_uri,
+                auth=(neo4j_user, neo4j_password),
+            )
+            
+            async with driver.session() as session:
+                query = f"""
+                MATCH path = (center:Entity {{id: $entity_id}})-[*1..{depth}]-(neighbor:Entity)
+                RETURN center, neighbor, relationships(path) as rels
+                """
+                
+                result = await session.run(query, entity_id=entity_id)
+                records = [r async for r in result]
+                
+                if records:
+                    nodes: dict[str, GraphNode] = {}
+                    edges: dict[str, GraphEdge] = {}
+                    
+                    nodes[entity_id] = GraphNode(
+                        id=center.entity_id,
+                        name=center.name,
+                        type=center.entity_type,
+                    )
+                    
+                    for record in records:
+                        neighbor = record["neighbor"]
+                        neighbor_id = neighbor["id"]
+                        
+                        if neighbor_id not in nodes:
+                            nodes[neighbor_id] = GraphNode(
+                                id=neighbor_id,
+                                name=neighbor.get("name", ""),
+                                type=neighbor.get("type", ""),
+                            )
+                        
+                        rels = record["rels"]
+                        for rel in rels:
+                            edge_id = f"{rel.start_node['id']}_{rel.type}_{rel.end_node['id']}"
+                            if edge_id not in edges:
+                                edges[edge_id] = GraphEdge(
+                                    id=edge_id,
+                                    source=rel.start_node["id"],
+                                    target=rel.end_node["id"],
+                                    type=rel.type,
+                                )
+                    
+                    await driver.close()
+                    
+                    return GraphData(
+                        nodes=list(nodes.values()),
+                        edges=list(edges.values()),
+                        total_nodes=len(nodes),
+                        total_edges=len(edges),
+                    )
+            
+            await driver.close()
+        except Exception as e:
+            logger.debug(f"Neo4j graph query failed, falling back to PostgreSQL: {e}")
     
     nodes: dict[str, GraphNode] = {center.entity_id: entity_to_node(center)}
     edges: dict[str, GraphEdge] = {}
@@ -327,6 +396,7 @@ async def find_path(
     start_id: str = Query(...),
     end_id: str = Query(...),
     max_depth: int = Query(3, ge=1, le=5),
+    use_neo4j: bool = Query(True, description="Use Neo4j for path finding if available"),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     for eid, label in [(start_id, "Start"), (end_id, "End")]:
@@ -334,6 +404,63 @@ async def find_path(
         result = await db.execute(query)
         if not result.scalar_one_or_none():
             raise HTTPException(status_code=404, detail=f"{label} entity not found: {eid}")
+    
+    if use_neo4j:
+        import os
+        try:
+            from neo4j import AsyncGraphDatabase
+            
+            neo4j_uri = os.getenv("NEO4J_URI", "bolt://localhost:7687")
+            neo4j_user = os.getenv("NEO4J_USER", "neo4j")
+            neo4j_password = os.getenv("NEO4J_PASSWORD", "openfinance123")
+            
+            driver = AsyncGraphDatabase.driver(
+                neo4j_uri,
+                auth=(neo4j_user, neo4j_password),
+            )
+            
+            async with driver.session() as session:
+                query = f"""
+                MATCH path = shortestPath(
+                    (start:Entity {{id: $start_id}})-[*1..{max_depth}]-(end:Entity {{id: $end_id}})
+                )
+                RETURN path
+                """
+                
+                result = await session.run(query, start_id=start_id, end_id=end_id)
+                record = await result.single()
+                
+                if record:
+                    path = record["path"]
+                    path_entities = []
+                    
+                    for node in path.nodes:
+                        path_entities.append({
+                            "id": node["id"],
+                            "name": node.get("name", ""),
+                            "type": node.get("type", ""),
+                        })
+                    
+                    await driver.close()
+                    
+                    return {
+                        "found": True,
+                        "path": path_entities,
+                        "length": len(path_entities) - 1,
+                        "backend": "neo4j",
+                    }
+            
+            await driver.close()
+            
+            return {
+                "found": False,
+                "path": [],
+                "length": 0,
+                "message": f"No path found within {max_depth} hops",
+                "backend": "neo4j",
+            }
+        except Exception as e:
+            logger.debug(f"Neo4j path query failed, falling back to PostgreSQL: {e}")
     
     queue = deque([(start_id, [start_id])])
     visited = {start_id}
@@ -358,6 +485,7 @@ async def find_path(
                 "found": True,
                 "path": path_entities,
                 "length": len(path) - 1,
+                "backend": "postgresql",
             }
         
         if len(path) > max_depth:
@@ -388,6 +516,7 @@ async def find_path(
         "path": [],
         "length": 0,
         "message": f"No path found within {max_depth} hops",
+        "backend": "postgresql",
     }
 
 
@@ -985,3 +1114,188 @@ async def list_relation_types() -> dict[str, Any]:
             for t in VALID_RELATION_TYPES
         ]
     }
+
+
+@router.post("/sync/neo4j")
+async def sync_to_neo4j(
+    clear_existing: bool = Query(True, description="Clear existing Neo4j data before sync"),
+) -> dict[str, Any]:
+    """
+    Synchronize data from PostgreSQL to Neo4j.
+    
+    This endpoint syncs all entities and relations from PostgreSQL to Neo4j
+    for efficient graph queries and multi-hop path finding.
+    """
+    import os
+    from openfinance.datacenter.graph.sync.pg_to_neo4j import PostgresToNeo4jSync
+    
+    neo4j_uri = os.getenv("NEO4J_URI", "bolt://localhost:7687")
+    neo4j_user = os.getenv("NEO4J_USER", "neo4j")
+    neo4j_password = os.getenv("NEO4J_PASSWORD", "openfinance123")
+    
+    try:
+        sync = PostgresToNeo4jSync(
+            neo4j_uri=neo4j_uri,
+            neo4j_user=neo4j_user,
+            neo4j_password=neo4j_password,
+        )
+        
+        result = await sync.sync_all(clear_existing=clear_existing)
+        
+        return {
+            "success": True,
+            "message": "Data synchronized to Neo4j successfully",
+            "result": result,
+        }
+    except Exception as e:
+        logger.error(f"Failed to sync to Neo4j: {e}")
+        return {
+            "success": False,
+            "error": str(e),
+        }
+
+
+@router.get("/neo4j/status")
+async def get_neo4j_status() -> dict[str, Any]:
+    """
+    Get Neo4j connection status and data statistics.
+    """
+    import os
+    
+    neo4j_uri = os.getenv("NEO4J_URI", "bolt://localhost:7687")
+    neo4j_user = os.getenv("NEO4J_USER", "neo4j")
+    neo4j_password = os.getenv("NEO4J_PASSWORD", "openfinance123")
+    
+    try:
+        from neo4j import AsyncGraphDatabase
+        
+        driver = AsyncGraphDatabase.driver(
+            neo4j_uri,
+            auth=(neo4j_user, neo4j_password),
+        )
+        
+        async with driver.session() as session:
+            node_count = await session.run("MATCH (n) RETURN count(n) as count")
+            node_result = await node_count.single()
+            
+            rel_count = await session.run("MATCH ()-[r]->() RETURN count(r) as count")
+            rel_result = await rel_count.single()
+            
+            labels_result = await session.run("CALL db.labels()")
+            labels = [r async for r in labels_result]
+            
+            rel_types_result = await session.run("CALL db.relationshipTypes()")
+            rel_types = [r async for r in rel_types_result]
+        
+        await driver.close()
+        
+        return {
+            "success": True,
+            "connected": True,
+            "node_count": node_result["count"] if node_result else 0,
+            "relationship_count": rel_result["count"] if rel_result else 0,
+            "labels": [l["label"] for l in labels],
+            "relationship_types": [r["relationshipType"] for r in rel_types],
+        }
+    except ImportError:
+        return {
+            "success": False,
+            "connected": False,
+            "error": "neo4j driver not installed",
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "connected": False,
+            "error": str(e),
+        }
+
+
+@router.get("/path/neo4j")
+async def find_path_neo4j(
+    start_id: str = Query(...),
+    end_id: str = Query(...),
+    max_depth: int = Query(3, ge=1, le=5),
+) -> dict[str, Any]:
+    """
+    Find path between two entities using Neo4j shortestPath algorithm.
+    
+    This is more efficient than the PostgreSQL BFS implementation for
+    complex multi-hop queries.
+    """
+    import os
+    
+    neo4j_uri = os.getenv("NEO4J_URI", "bolt://localhost:7687")
+    neo4j_user = os.getenv("NEO4J_USER", "neo4j")
+    neo4j_password = os.getenv("NEO4J_PASSWORD", "openfinance123")
+    
+    try:
+        from neo4j import AsyncGraphDatabase
+        
+        driver = AsyncGraphDatabase.driver(
+            neo4j_uri,
+            auth=(neo4j_user, neo4j_password),
+        )
+        
+        async with driver.session() as session:
+            query = f"""
+            MATCH path = shortestPath(
+                (start:Entity {{id: $start_id}})-[*1..{max_depth}]-(end:Entity {{id: $end_id}})
+            )
+            RETURN path
+            """
+            
+            result = await session.run(query, start_id=start_id, end_id=end_id)
+            record = await result.single()
+            
+            if record:
+                path = record["path"]
+                nodes = []
+                relationships = []
+                
+                for node in path.nodes:
+                    nodes.append({
+                        "id": node["id"],
+                        "name": node.get("name", ""),
+                        "type": node.get("type", ""),
+                    })
+                
+                for rel in path.relationships:
+                    relationships.append({
+                        "type": rel.type,
+                        "start_node": rel.start_node["id"],
+                        "end_node": rel.end_node["id"],
+                    })
+                
+                await driver.close()
+                
+                return {
+                    "found": True,
+                    "path": nodes,
+                    "relationships": relationships,
+                    "length": len(relationships),
+                }
+            
+            await driver.close()
+            
+            return {
+                "found": False,
+                "path": [],
+                "length": 0,
+                "message": f"No path found within {max_depth} hops",
+            }
+    except ImportError:
+        return {
+            "found": False,
+            "error": "neo4j driver not installed",
+            "path": [],
+            "length": 0,
+        }
+    except Exception as e:
+        logger.error(f"Neo4j path query failed: {e}")
+        return {
+            "found": False,
+            "error": str(e),
+            "path": [],
+            "length": 0,
+        }

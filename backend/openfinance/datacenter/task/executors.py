@@ -494,4 +494,16 @@ def register_all_executors():
     except Exception as e:
         logger.warning(f"Failed to register additional executors: {e}")
     
+    try:
+        from .us_executors import register_us_executors
+        register_us_executors()
+    except Exception as e:
+        logger.warning(f"Failed to register US executors: {e}")
+    
+    try:
+        from .hk_executors import register_hk_executors
+        register_hk_executors()
+    except Exception as e:
+        logger.warning(f"Failed to register HK executors: {e}")
+    
     logger.info(f"Registered {len(TaskRegistry._executors)} task executors")

@@ -1,0 +1,55 @@
+version: "1.0"
+metadata:
+  namespace: openfinance
+  description: 行业周期因子定义
+
+factor_id: factor_industry_cycle
+name: Industry Cycle Score
+display_name: 行业周期评分
+description: 评估行业周期位置，包括周期位置、盈利周期、产能利用率、资本开支周期
+factor_type: industry
+category: cycle
+version: "1.0.0"
+author: system
+tags: [industry, cycle, profit]
+
+indicators:
+  CYCLE_POSITION:
+    name: 周期位置
+    weight: 0.35
+    value_map:
+      early_expansion: 90
+      expansion: 75
+      late_expansion: 60
+      peak: 50
+      early_contraction: 35
+      contraction: 25
+      late_contraction: 40
+    data_source: industry_analysis
+    
+  PROFIT_CYCLE:
+    name: 盈利周期
+    weight: 0.3
+    score_formula: "min(100, max(0, 50 + value * 3))"
+    data_source: financial_report
+    unit: "%"
+    description: 行业盈利增速
+    
+  CAPACITY_UTILIZATION:
+    name: 产能利用率
+    weight: 0.2
+    optimal_range: [75, 85]
+    score_formula: "max(0, 100 - abs(value - 80) * 2)"
+    data_source: industry_data
+    unit: "%"
+    
+  CAPEX_CYCLE:
+    name: 资本开支周期
+    weight: 0.15
+    score_formula: "min(100, max(0, 50 + value * 2))"
+    data_source: financial_report
+    unit: "%"
+
+output:
+  type: float
+  range: [0, 100]

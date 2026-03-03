@@ -17,6 +17,10 @@ from .wr import wr, calculate_wr, WRFactor, WRValues
 from .obv import obv, calculate_obv, OBVFactor, OBVValues
 from .rsi import calculate_rsi, RSIFactor
 from .kdj import calculate_kdj, kdj, KDJFactor, KDJValues
+from .momentum import calculate_momentum, MomentumFactor
+from .relative_strength import calculate_relative_strength, RelativeStrengthFactor
+from .volume_strength import calculate_volume_strength, VolumeStrengthFactor
+from .trend_strength import calculate_trend_strength, TrendStrengthFactor
 
 import importlib
 import logging
@@ -65,5 +69,9 @@ __all__ = [
     "obv", "calculate_obv", "OBVFactor", "OBVValues",
     "calculate_rsi", "RSIFactor",
     "calculate_kdj", "kdj", "KDJFactor", "KDJValues",
+    "calculate_momentum", "MomentumFactor",
+    "calculate_relative_strength", "RelativeStrengthFactor",
+    "calculate_volume_strength", "VolumeStrengthFactor",
+    "calculate_trend_strength", "TrendStrengthFactor",
     "load_custom_factors",
 ]

@@ -145,13 +145,26 @@ relation_types:
     version: "1.0.0"
     
     source_types: [person]
-    target_types: [company]
+    target_types: [company, fund]
     
     properties:
       role:
         type: enum
-        values: [ceo, cfo, cto, chairman, director, supervisor]
+        values: [ceo, cfo, cto, chairman, director, supervisor, fund_manager]
         description: 角色
+        
+      start_date:
+        type: date
+        description: 开始日期
+        
+      end_date:
+        type: date
+        description: 结束日期
+        
+      is_current:
+        type: boolean
+        default: true
+        description: 是否在职
 
   parent_of:
     display_name: 母公司
@@ -260,3 +273,157 @@ relation_types:
         precision: 3
         scale: 2
         description: 置信度
+
+  focuses_on:
+    display_name: 关注领域
+    category: expertise
+    description: 人物关注的行业领域
+    version: "1.0.0"
+    
+    source_types: [person]
+    target_types: [industry]
+    
+    properties:
+      expertise_level:
+        type: enum
+        values: [expert, proficient, familiar, beginner]
+        description: 专业程度（专家/精通/熟悉/初学者）
+        
+      years:
+        type: integer
+        min: 0
+        description: 关注该领域的年限
+        
+      weight:
+        type: decimal
+        precision: 3
+        scale: 2
+        min: 0
+        max: 1
+        description: 关注权重（用于评分计算）
+        
+      source:
+        type: string
+        description: 数据来源
+
+  invested_in:
+    display_name: 投资标的
+    category: investment
+    description: 人物投资的股票或公司
+    version: "1.0.0"
+    
+    source_types: [person]
+    target_types: [stock, company]
+    
+    properties:
+      shares:
+        type: decimal
+        precision: 20
+        scale: 4
+        description: 持股数量
+        
+      ratio:
+        type: decimal
+        precision: 5
+        scale: 2
+        description: 持股比例
+        
+      investment_type:
+        type: enum
+        values: [personal, fund, institutional]
+        description: 投资类型（个人/基金/机构）
+        
+      as_of_date:
+        type: date
+        description: 数据日期
+        
+      source:
+        type: string
+        description: 数据来源
+
+  follows:
+    display_name: 关注
+    category: social
+    description: 社交关注关系
+    version: "1.0.0"
+    
+    source_types: [person]
+    target_types: [person]
+    
+    properties:
+      platform:
+        type: enum
+        values: [weibo, wechat, twitter, linkedin, xueqiu]
+        description: 平台
+        
+      since:
+        type: date
+        description: 关注时间
+        
+      interaction_count:
+        type: integer
+        description: 互动次数
+
+  collaborates_with:
+    display_name: 合作
+    category: business
+    description: 合作关系
+    version: "1.0.0"
+    
+    source_types: [person]
+    target_types: [person]
+    symmetric: true
+    
+    properties:
+      collaboration_type:
+        type: enum
+        values: [research, investment, project, advisory]
+        description: 合作类型（研究/投资/项目/顾问）
+        
+      project_name:
+        type: string
+        description: 项目名称
+        
+      start_date:
+        type: date
+        description: 开始日期
+        
+      end_date:
+        type: date
+        description: 结束日期
+        
+      is_active:
+        type: boolean
+        default: true
+        description: 是否活跃
+
+  mentioned_in:
+    display_name: 提及
+    category: reference
+    description: 人物在新闻或研报中被提及
+    version: "1.0.0"
+    
+    source_types: [person]
+    target_types: [company, stock, industry, concept]
+    
+    properties:
+      mention_type:
+        type: enum
+        values: [news, report, speech, interview]
+        description: 提及类型（新闻/研报/演讲/访谈）
+        
+      sentiment:
+        type: decimal
+        precision: 4
+        scale: 3
+        min: -1
+        max: 1
+        description: 情感分数
+        
+      source_url:
+        type: string
+        description: 来源链接
+        
+      mention_date:
+        type: date
+        description: 提及日期

@@ -1,0 +1,50 @@
+version: "1.0"
+metadata:
+  namespace: openfinance
+  description: 行业供应链因子定义
+
+factor_id: factor_industry_supply_chain
+name: Industry Supply Chain Score
+display_name: 行业供应链评分
+description: 评估行业供应链状况，包括库存周期、原材料价格、物流指数、供应链稳定性
+factor_type: industry
+category: supply_chain
+version: "1.0.0"
+author: system
+tags: [industry, supply_chain, inventory]
+
+indicators:
+  INVENTORY_CYCLE:
+    name: 库存周期
+    weight: 0.3
+    value_map:
+      restocking: 80
+      neutral: 50
+      destocking: 30
+    data_source: industry_data
+    description: 补库存=80, 中性=50, 去库存=30
+    
+  RAW_MATERIAL_PRICE:
+    name: 原材料价格变动
+    weight: 0.25
+    score_formula: "max(0, 50 - value * 5)"
+    data_source: commodity_price
+    unit: "%"
+    description: 原材料价格上涨对下游不利
+    
+  LOGISTICS_INDEX:
+    name: 物流指数
+    weight: 0.25
+    score_formula: "min(100, value)"
+    data_source: logistics_data
+    
+  SUPPLY_CHAIN_STABILITY:
+    name: 供应链稳定性
+    weight: 0.2
+    score_formula: "max(0, 100 - value * 20)"
+    data_source: event_graph
+    description: 供应链中断事件数量
+
+output:
+  type: float
+  range: [0, 100]

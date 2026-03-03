@@ -1,0 +1,41 @@
+version: "1.0"
+metadata:
+  namespace: openfinance
+  description: 全球宏观风险因子定义
+
+factor_id: factor_global_macro_risk
+name: Global Macro Risk Score
+display_name: 全球宏观风险评分
+description: 评估市场风险偏好，包括VIX、信用利差、美元指数
+factor_type: macro
+category: sentiment
+version: "1.0.0"
+author: system
+tags: [macro, global, risk, vix]
+
+indicators:
+  VIX:
+    name: VIX恐慌指数
+    weight: 0.4
+    optimal_range: [12, 20]
+    score_formula: "max(0, 100 - value * 3)"
+    data_source: market_index
+    
+  CREDIT_SPREAD:
+    name: 信用利差
+    weight: 0.3
+    optimal_range: [1.0, 2.0]
+    score_formula: "max(0, 100 - value * 30)"
+    data_source: bond_market
+    unit: "%"
+    
+  DOLLAR_INDEX:
+    name: 美元指数
+    weight: 0.3
+    optimal_range: [95, 105]
+    score_formula: "max(0, 100 - abs(value - 100) * 2)"
+    data_source: forex
+
+output:
+  type: float
+  range: [0, 100]

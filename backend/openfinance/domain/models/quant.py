@@ -20,6 +20,8 @@ class FactorType(str, enum.Enum):
     TECHNICAL = "technical"
     FUNDAMENTAL = "fundamental"
     ALTERNATIVE = "alternative"
+    MACRO = "macro"
+    INDUSTRY = "industry"
     CUSTOM = "custom"
 
 
@@ -35,6 +37,12 @@ class FactorCategory(str, enum.Enum):
     FLOW = "flow"
     LIQUIDITY = "liquidity"
     LEVERAGE = "leverage"
+    POLICY = "policy"
+    ECONOMIC = "economic"
+    ROTATION = "rotation"
+    CYCLE = "cycle"
+    SUPPLY_CHAIN = "supply_chain"
+    TECH_TREND = "tech_trend"
     CUSTOM = "custom"
 
 

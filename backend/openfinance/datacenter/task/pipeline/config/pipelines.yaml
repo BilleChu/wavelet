@@ -131,6 +131,16 @@ pipelines:
         dependencies:
           - collect_daily_quotes
 
+      - task_id: collect_cash_flow
+        name: "Collect Cash Flow Statement"
+        task_type: cash_flow_statement
+        priority: normal
+        timeout_seconds: 300
+        max_retries: 3
+        params: {}
+        dependencies:
+          - collect_daily_quotes
+
   knowledge_graph_sync:
     name: "Knowledge Graph Sync"
     description: "Sync entities to knowledge graph"
@@ -432,3 +442,313 @@ pipelines:
           - sync_income_statement
           - sync_balance_sheet
           - sync_dividend_data
+
+  research_report_daily:
+    name: "Daily Research Report Collection"
+    description: "Collect research reports from data sources daily"
+    enabled: true
+    schedule:
+      type: cron
+      expression: "0 8 * * 1-5"
+      timezone: "Asia/Shanghai"
+    max_concurrent_tasks: 3
+    timeout_seconds: 600
+    tasks:
+      - task_id: collect_research_reports
+        name: "Collect Research Reports"
+        task_type: research_report
+        priority: high
+        timeout_seconds: 600
+        max_retries: 3
+        params:
+          source: "eastmoney"
+          days_back: 1
+          process_content: true
+          sync_to_kg: true
+        dependencies: []
+
+  research_report_weekly:
+    name: "Weekly Research Report Full Collection"
+    description: "Collect all research reports from the past week"
+    enabled: true
+    schedule:
+      type: cron
+      expression: "0 6 * * 1"
+      timezone: "Asia/Shanghai"
+    max_concurrent_tasks: 3
+    timeout_seconds: 1800
+    tasks:
+      - task_id: collect_research_reports_weekly
+        name: "Collect Weekly Research Reports"
+        task_type: research_report
+        priority: normal
+        timeout_seconds: 1800
+        max_retries: 3
+        params:
+          source: "eastmoney"
+          days_back: 7
+          process_content: true
+          sync_to_kg: true
+        dependencies: []
+
+  research_report_monthly:
+    name: "Monthly Research Report Deep Collection"
+    description: "Deep collection of research reports monthly"
+    enabled: true
+    schedule:
+      type: cron
+      expression: "0 2 1 * *"
+      timezone: "Asia/Shanghai"
+    max_concurrent_tasks: 2
+    timeout_seconds: 3600
+    tasks:
+      - task_id: collect_research_reports_monthly
+        name: "Collect Monthly Research Reports"
+        task_type: research_report
+        priority: low
+        timeout_seconds: 3600
+        max_retries: 2
+        params:
+          source: "eastmoney"
+          days_back: 30
+          process_content: true
+          sync_to_kg: true
+        dependencies: []
+
+  market_analysis_daily:
+    name: "Daily Market Analysis"
+    description: "Calculate market scores and collect events daily"
+    enabled: true
+    schedule:
+      type: cron
+      expression: "0 17 * * 1-5"
+      timezone: "Asia/Shanghai"
+    max_concurrent_tasks: 3
+    timeout_seconds: 600
+    tasks:
+      - task_id: calculate_market_score
+        name: "Calculate Market Score"
+        task_type: market_score_calculation
+        priority: high
+        timeout_seconds: 300
+        max_retries: 3
+        params:
+          save_to_db: true
+          include_stock_scores: false
+        dependencies: []
+
+      - task_id: collect_market_events
+        name: "Collect Market Events"
+        task_type: market_event_collection
+        priority: high
+        timeout_seconds: 600
+        max_retries: 3
+        params:
+          days_back: 1
+          importance_threshold: "medium"
+          use_ai_analysis: true
+        dependencies: []
+
+      - task_id: calculate_stock_scores
+        name: "Calculate Stock Scores"
+        task_type: stock_score_calculation
+        priority: normal
+        timeout_seconds: 600
+        max_retries: 2
+        params:
+          top_n: 100
+        dependencies:
+          - calculate_market_score
+
+      - task_id: collect_financial_calendar
+        name: "Collect Financial Calendar"
+        task_type: financial_calendar_collection
+        priority: high
+        timeout_seconds: 300
+        max_retries: 2
+        params:
+          days_forward: 30
+        dependencies: []
+
+  market_analysis_hourly:
+    name: "Hourly Market Score Update"
+    description: "Update market scores during trading hours"
+    enabled: true
+    schedule:
+      type: interval
+      expression: "3600"
+    max_concurrent_tasks: 1
+    timeout_seconds: 300
+    tasks:
+      - task_id: update_market_score
+        name: "Update Market Score"
+        task_type: market_score_calculation
+        priority: high
+        timeout_seconds: 300
+        max_retries: 2
+        params:
+          save_to_db: true
+          include_stock_scores: false
+        dependencies: []
+
+  us_daily_sync:
+    name: "US Daily Data Sync"
+    description: "Sync daily US stock market data"
+    enabled: true
+    schedule:
+      type: cron
+      expression: "0 5 * * *"
+      timezone: "Asia/Shanghai"
+    max_concurrent_tasks: 3
+    timeout_seconds: 3600
+    tasks:
+      - task_id: sync_us_stock_list
+        name: "Sync US Stock List"
+        task_type: us_stock_list
+        priority: high
+        timeout_seconds: 300
+        max_retries: 3
+        params:
+          index: "sp500"
+        dependencies: []
+
+      - task_id: sync_us_quotes
+        name: "Sync US Stock Quotes"
+        task_type: us_stock_quote
+        priority: high
+        timeout_seconds: 1800
+        max_retries: 3
+        params:
+          days: 30
+        dependencies:
+          - sync_us_stock_list
+
+      - task_id: sync_us_financials
+        name: "Sync US Financial Statements"
+        task_type: us_financial_statement
+        priority: normal
+        timeout_seconds: 1800
+        max_retries: 3
+        params: {}
+        dependencies:
+          - sync_us_stock_list
+
+  hk_daily_sync:
+    name: "HK Daily Data Sync"
+    description: "Sync daily HK stock market data"
+    enabled: true
+    schedule:
+      type: cron
+      expression: "0 17 * * 1-5"
+      timezone: "Asia/Shanghai"
+    max_concurrent_tasks: 3
+    timeout_seconds: 3600
+    tasks:
+      - task_id: sync_hk_stock_list
+        name: "Sync HK Stock List"
+        task_type: hk_stock_list
+        priority: high
+        timeout_seconds: 300
+        max_retries: 3
+        params: {}
+        dependencies: []
+
+      - task_id: sync_hk_quotes
+        name: "Sync HK Stock Quotes"
+        task_type: hk_stock_quote
+        priority: high
+        timeout_seconds: 1800
+        max_retries: 3
+        params:
+          days: 30
+        dependencies:
+          - sync_hk_stock_list
+
+      - task_id: sync_hk_money_flow
+        name: "Sync HK Money Flow"
+        task_type: hk_money_flow
+        priority: normal
+        timeout_seconds: 600
+        max_retries: 3
+        params: {}
+        dependencies:
+          - sync_hk_stock_list
+
+  us_historical_sync:
+    name: "US Historical Data Sync"
+    description: "One-time sync of historical US stock data (2 years)"
+    enabled: true
+    schedule:
+      type: manual
+    max_concurrent_tasks: 2
+    timeout_seconds: 7200
+    tasks:
+      - task_id: sync_us_stock_list
+        name: "Sync US Stock List"
+        task_type: us_stock_list
+        priority: critical
+        timeout_seconds: 300
+        max_retries: 3
+        params:
+          index: "sp500"
+        dependencies: []
+
+      - task_id: sync_us_quotes_2y
+        name: "Sync 2 Years US Quotes"
+        task_type: us_stock_quote
+        priority: high
+        timeout_seconds: 7200
+        max_retries: 3
+        params:
+          days: 730
+        dependencies:
+          - sync_us_stock_list
+
+      - task_id: sync_us_financials_all
+        name: "Sync All US Financials"
+        task_type: us_financial_statement
+        priority: normal
+        timeout_seconds: 3600
+        max_retries: 3
+        params: {}
+        dependencies:
+          - sync_us_stock_list
+
+  hk_historical_sync:
+    name: "HK Historical Data Sync"
+    description: "One-time sync of historical HK stock data (2 years)"
+    enabled: true
+    schedule:
+      type: manual
+    max_concurrent_tasks: 2
+    timeout_seconds: 7200
+    tasks:
+      - task_id: sync_hk_stock_list
+        name: "Sync HK Stock List"
+        task_type: hk_stock_list
+        priority: critical
+        timeout_seconds: 300
+        max_retries: 3
+        params: {}
+        dependencies: []
+
+      - task_id: sync_hk_quotes_2y
+        name: "Sync 2 Years HK Quotes"
+        task_type: hk_stock_quote
+        priority: high
+        timeout_seconds: 7200
+        max_retries: 3
+        params:
+          days: 730
+        dependencies:
+          - sync_hk_stock_list
+
+      - task_id: sync_hk_money_flow_all
+        name: "Sync All HK Money Flow"
+        task_type: hk_money_flow
+        priority: normal
+        timeout_seconds: 1800
+        max_retries: 3
+        params: {}
+        dependencies:
+          - sync_hk_stock_list

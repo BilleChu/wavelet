@@ -1,0 +1,52 @@
+version: "1.0"
+metadata:
+  namespace: openfinance
+  description: 市场趋势因子定义
+
+factor_id: factor_market_trend
+name: Market Trend Score
+display_name: 市场趋势评分
+description: 评估市场趋势，包括均线排列、价格与MA20关系、趋势强度、MACD信号
+factor_type: technical
+category: momentum
+version: "1.0.0"
+author: system
+tags: [market, trend, ma, macd]
+
+indicators:
+  MA_ALIGNMENT:
+    name: 均线排列
+    weight: 0.35
+    value_map:
+      bullish: 90
+      neutral: 60
+      bearish: 30
+    data_source: market_index
+    description: 多头排列=90, 混乱=60, 空头排列=30
+    
+  PRICE_VS_MA20:
+    name: 价格与MA20关系
+    weight: 0.25
+    score_formula: "min(100, max(0, 70 + (price - ma20) / ma20 * 100))"
+    data_source: market_index
+    
+  TREND_STRENGTH:
+    name: 趋势强度
+    weight: 0.2
+    score_formula: "min(100, value * 1.5)"
+    data_source: market_index
+    description: ADX指标
+    
+  MACD_SIGNAL:
+    name: MACD信号
+    weight: 0.2
+    value_map:
+      golden_cross: 80
+      above_zero: 65
+      below_zero: 45
+      death_cross: 30
+    data_source: market_index
+
+output:
+  type: float
+  range: [0, 100]

@@ -1,0 +1,79 @@
+version: "1.0"
+metadata:
+  namespace: openfinance
+  description: 强势股多因子策略配置
+
+strategy_id: strategy_strong_stock
+name: 强势股多因子策略
+code: strong_stock
+display_name: Strong Stock Multi-Factor Strategy
+description: 通过动量、相对强度、成交量和趋势强度识别强势股的多因子策略
+strategy_type: multi_factor
+version: "1.0.0"
+author: system
+tags: [momentum, relative_strength, volume, trend, strong_stock]
+status: active
+
+factors:
+  - factor_id: factor_momentum
+    name: 动量因子
+    weight: 0.30
+    enabled: true
+    parameters:
+      period: 20
+    description: 计算股价在特定周期内的涨跌幅
+    
+  - factor_id: factor_relative_strength
+    name: 相对强度因子
+    weight: 0.30
+    enabled: true
+    parameters:
+      period: 20
+    description: 使用线性回归计算价格趋势强度
+    
+  - factor_id: factor_volume_strength
+    name: 成交量强度因子
+    weight: 0.20
+    enabled: true
+    parameters:
+      period: 20
+    description: 分析成交量模式，识别资金流向
+    
+  - factor_id: factor_trend_strength
+    name: 趋势强度因子
+    weight: 0.20
+    enabled: true
+    parameters:
+      period: 20
+    description: 基于方向运动指标计算趋势强度
+
+portfolio:
+  max_positions: 30
+  position_size: 0.02
+  weight_method: equal_weight
+  rebalance_freq: weekly
+  
+risk_management:
+  stop_loss: -0.08
+  take_profit: 0.20
+  max_position_weight: 0.10
+  min_position_weight: 0.01
+  
+signal_generation:
+  min_signal_threshold: 0.5
+  min_factors_required: 2
+  normalization_method: zscore
+  
+backtest:
+  initial_capital: 1000000
+  commission: 0.0003
+  slippage: 0.0001
+  benchmark: "000300"
+  risk_free_rate: 0.03
+  
+universe:
+  min_market_cap: 5000000000
+  max_stocks: 300
+  exclude_st: true
+  exclude_suspended: true
+  min_price: 2.0

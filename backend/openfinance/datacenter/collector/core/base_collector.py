@@ -52,6 +52,8 @@ class DataSource(str, Enum):
     EXCHANGE = "exchange"
     RESEARCH = "research"
     CUSTOM = "custom"
+    YFINANCE = "yfinance"
+    FRED = "fred"
 
 
 class DataType(str, Enum):

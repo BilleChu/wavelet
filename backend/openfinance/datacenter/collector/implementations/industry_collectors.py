@@ -351,6 +351,410 @@ class IndustryDataCollector(QuantDataCollector):
             return None
 
 
+EASTMONEY_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    "Accept": "application/json, text/plain, */*",
+    "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
+    "Referer": "https://data.eastmoney.com/",
+}
+
+
+class EastMoneyIndustryListCollector(QuantDataCollector):
+    """
+    Collector for EastMoney industry classification list.
+    获取东方财富行业分类列表，包括申万行业分类。
+    """
+
+    EASTMONEY_INDUSTRY_LIST_URL = "https://push2.eastmoney.com/api/qt/clist/get"
+
+    def __init__(self, config: CollectionConfig | None = None) -> None:
+        if config is None:
+            config = CollectionConfig(
+                source=DataSource.EASTMONEY,
+                data_type=DataType.INDUSTRY_DATA,
+                category=DataCategory.MARKET,
+                frequency=DataFrequency.DAILY,
+            )
+        super().__init__(config)
+
+    @property
+    def source(self) -> DataSource:
+        return DataSource.EASTMONEY
+
+    async def _initialize(self) -> None:
+        logger.info(f"Initialized {self.__class__.__name__}")
+
+    async def _cleanup(self) -> None:
+        logger.info(f"Cleaned up {self.__class__.__name__}")
+
+    async def _collect(self, **kwargs: Any) -> list[dict[str, Any]]:
+        industry_type = kwargs.get("industry_type", "industry")
+        return await self._collect_industry_list(industry_type)
+
+    async def _collect_industry_list(self, industry_type: str = "industry") -> list[dict[str, Any]]:
+        import aiohttp
+        import asyncio
+
+        fs_map = {
+            "industry": "m:90 t:2 f:!50",
+            "concept": "m:90 t:3 f:!50",
+            "region": "m:90 t:1 f:!50",
+        }
+
+        fs = fs_map.get(industry_type, fs_map["industry"])
+
+        params = {
+            "pn": 1,
+            "pz": 500,
+            "po": 1,
+            "np": 1,
+            "fltt": 2,
+            "invt": 2,
+            "fid": "f3",
+            "fs": fs,
+            "fields": "f1,f2,f3,f4,f12,f13,f14,f62,f184,f66,f69,f72,f75,f78,f81,f84,f87,f124,f140,f141,f207,f208,f209,f222,f225,f239,f240,f241,f242,f243,f244,f245,f246,f247,f248,f250,f251,f252,f253,f254,f255,f256",
+        }
+
+        records = []
+        timeout = aiohttp.ClientTimeout(total=30, connect=10)
+        connector = aiohttp.TCPConnector(limit=10, limit_per_host=5)
+
+        async with aiohttp.ClientSession(headers=EASTMONEY_HEADERS, timeout=timeout, connector=connector) as session:
+            max_retries = 3
+            for attempt in range(max_retries):
+                try:
+                    async with session.get(self.EASTMONEY_INDUSTRY_LIST_URL, params=params) as response:
+                        if response.status == 200:
+                            data = await response.json()
+                            break
+                        else:
+                            if attempt < max_retries - 1:
+                                await asyncio.sleep(1.0 * (attempt + 1))
+                                continue
+                            data = {}
+                except Exception as e:
+                    if attempt < max_retries - 1:
+                        await asyncio.sleep(1.0 * (attempt + 1))
+                        continue
+                    logger.warning(f"Failed to fetch industry list: {e}")
+                    data = {}
+
+            if data.get("data") and data["data"].get("diff"):
+                for item in data["data"]["diff"]:
+                    records.append({
+                        "type": industry_type,
+                        "code": item.get("f12", ""),
+                        "name": item.get("f14", ""),
+                        "change_pct": self._safe_float(item.get("f3")),
+                        "change": self._safe_float(item.get("f4")),
+                        "total_market_cap": self._safe_float(item.get("f62")),
+                        "turnover_rate": self._safe_float(item.get("f8")),
+                        "rise_count": self._safe_int(item.get("f244")),
+                        "fall_count": self._safe_int(item.get("f245")),
+                        "leading_stock_code": item.get("f140"),
+                        "leading_stock_name": item.get("f141"),
+                        "leading_stock_change": self._safe_float(item.get("f208")),
+                    })
+
+        return records
+
+    def _get_record_hash(self, record: dict[str, Any]) -> str:
+        return f"{record.get('type')}_{record.get('code')}"
+
+    async def _is_valid(self, record: dict[str, Any]) -> bool:
+        return record.get("code") is not None and record.get("name") is not None
+
+    async def _normalize_for_quant(self, data: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        return data
+
+    async def _compute_factors(self, data: list[dict[str, Any]]) -> None:
+        if not data:
+            return
+        change_pcts = [r.get("change_pct") for r in data if r.get("change_pct") is not None]
+        if change_pcts:
+            self._factor_cache["avg_change_pct"] = sum(change_pcts) / len(change_pcts)
+
+    def _safe_float(self, value: Any) -> float | None:
+        if value is None or value == "-" or value == "":
+            return None
+        try:
+            return float(value)
+        except (ValueError, TypeError):
+            return None
+
+    def _safe_int(self, value: Any) -> int | None:
+        if value is None or value == "-" or value == "":
+            return None
+        try:
+            return int(float(value))
+        except (ValueError, TypeError):
+            return None
+
+
+class EastMoneyIndustryMemberCollector(QuantDataCollector):
+    """
+    Collector for EastMoney industry member stocks.
+    获取东方财富行业/概念板块成分股。
+    """
+
+    EASTMONEY_INDUSTRY_MEMBER_URL = "https://push2.eastmoney.com/api/qt/clist/get"
+
+    def __init__(self, config: CollectionConfig | None = None) -> None:
+        if config is None:
+            config = CollectionConfig(
+                source=DataSource.EASTMONEY,
+                data_type=DataType.INDUSTRY_MEMBER,
+                category=DataCategory.MARKET,
+                frequency=DataFrequency.DAILY,
+            )
+        super().__init__(config)
+
+    @property
+    def source(self) -> DataSource:
+        return DataSource.EASTMONEY
+
+    async def _initialize(self) -> None:
+        logger.info(f"Initialized {self.__class__.__name__}")
+
+    async def _cleanup(self) -> None:
+        logger.info(f"Cleaned up {self.__class__.__name__}")
+
+    async def _collect(self, **kwargs: Any) -> list[dict[str, Any]]:
+        code = kwargs.get("code")
+        industry_type = kwargs.get("industry_type", "industry")
+        if not code:
+            raise ValueError("code parameter is required")
+        return await self._collect_industry_member(code, industry_type)
+
+    async def _collect_industry_member(self, code: str, industry_type: str = "industry") -> list[dict[str, Any]]:
+        import aiohttp
+        import asyncio
+
+        fs = f"b:{code} f:!50"
+
+        fields = (
+            "f1,f2,f3,f4,f5,f6,f7,f8,f9,f10,f12,f13,f14,f15,f16,f17,f18,"
+            "f20,f21,f23,f24,f25,f22,f11,f62,f128,f136,f140,f141,f207,"
+            "f208,f209,f222,f225,f239,f240,f241,f242,f243,f244,f245,"
+            "f246,f247,f248,f250,f251,f252,f253,f254,f255,f256"
+        )
+
+        records = []
+        timeout = aiohttp.ClientTimeout(total=30, connect=10)
+        connector = aiohttp.TCPConnector(limit=10, limit_per_host=5)
+
+        async with aiohttp.ClientSession(headers=EASTMONEY_HEADERS, timeout=timeout, connector=connector) as session:
+            page = 1
+            page_size = 100
+            total_records = 0
+
+            while True:
+                params = {
+                    "pn": page,
+                    "pz": page_size,
+                    "po": 1,
+                    "np": 1,
+                    "fltt": 2,
+                    "invt": 2,
+                    "fid": "f3",
+                    "fs": fs,
+                    "fields": fields,
+                }
+
+                max_retries = 3
+                data = {}
+                for attempt in range(max_retries):
+                    try:
+                        async with session.get(self.EASTMONEY_INDUSTRY_MEMBER_URL, params=params) as response:
+                            if response.status == 200:
+                                data = await response.json()
+                                break
+                            else:
+                                if attempt < max_retries - 1:
+                                    await asyncio.sleep(1.0 * (attempt + 1))
+                                    continue
+                    except Exception as e:
+                        if attempt < max_retries - 1:
+                            await asyncio.sleep(1.0 * (attempt + 1))
+                            continue
+                        logger.warning(f"Failed to fetch industry member page {page}: {e}")
+
+                if not data.get("data") or not data["data"].get("diff"):
+                    break
+
+                total = data["data"].get("total", 0)
+                diff = data["data"].get("diff", [])
+
+                for item in diff:
+                    records.append({
+                        "industry_code": code,
+                        "industry_type": industry_type,
+                        "stock_code": item.get("f12", ""),
+                        "stock_name": item.get("f14", ""),
+                        "price": self._safe_float(item.get("f2")),
+                        "change_pct": self._safe_float(item.get("f3")),
+                        "change": self._safe_float(item.get("f4")),
+                        "volume": self._safe_int(item.get("f5")),
+                        "amount": self._safe_float(item.get("f6")),
+                        "amplitude": self._safe_float(item.get("f7")),
+                        "turnover_rate": self._safe_float(item.get("f8")),
+                        "pe_ratio": self._safe_float(item.get("f9")),
+                        "circulating_market_cap": self._safe_float(item.get("f20")),
+                        "total_market_cap": self._safe_float(item.get("f21")),
+                    })
+
+                total_records += len(diff)
+                if total_records >= total:
+                    break
+
+                page += 1
+
+        return records
+
+    def _get_record_hash(self, record: dict[str, Any]) -> str:
+        return f"{record.get('industry_code')}_{record.get('stock_code')}"
+
+    async def _is_valid(self, record: dict[str, Any]) -> bool:
+        return record.get("stock_code") is not None and record.get("stock_name") is not None
+
+    async def _normalize_for_quant(self, data: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        return data
+
+    async def _compute_factors(self, data: list[dict[str, Any]]) -> None:
+        if not data:
+            return
+        change_pcts = [r.get("change_pct") for r in data if r.get("change_pct") is not None]
+        if change_pcts:
+            self._factor_cache["avg_change_pct"] = sum(change_pcts) / len(change_pcts)
+
+    def _safe_float(self, value: Any) -> float | None:
+        if value is None or value == "-" or value == "":
+            return None
+        try:
+            return float(value)
+        except (ValueError, TypeError):
+            return None
+
+    def _safe_int(self, value: Any) -> int | None:
+        if value is None or value == "-" or value == "":
+            return None
+        try:
+            return int(float(value))
+        except (ValueError, TypeError):
+            return None
+
+
+class EastMoneyStockIndustryCollector(QuantDataCollector):
+    """
+    Collector for stock industry classification.
+    获取单只股票所属的行业分类信息。
+    """
+
+    EASTMONEY_STOCK_INDUSTRY_URL = "https://emweb.eastmoney.com/PC_HSF10/CompanySurvey/CompanySurveyAjax"
+
+    def __init__(self, config: CollectionConfig | None = None) -> None:
+        if config is None:
+            config = CollectionConfig(
+                source=DataSource.EASTMONEY,
+                data_type=DataType.STOCK_FUNDAMENTAL,
+                category=DataCategory.FUNDAMENTAL,
+                frequency=DataFrequency.DAILY,
+            )
+        super().__init__(config)
+
+    @property
+    def source(self) -> DataSource:
+        return DataSource.EASTMONEY
+
+    async def _initialize(self) -> None:
+        logger.info(f"Initialized {self.__class__.__name__}")
+
+    async def _cleanup(self) -> None:
+        logger.info(f"Cleaned up {self.__class__.__name__}")
+
+    async def _collect(self, **kwargs: Any) -> list[dict[str, Any]]:
+        code = kwargs.get("code")
+        if not code:
+            raise ValueError("code parameter is required")
+        return await self._collect_stock_industry(code)
+
+    async def _collect_stock_industry(self, code: str) -> list[dict[str, Any]]:
+        import aiohttp
+        import asyncio
+
+        secid = ""
+        if code.startswith("6"):
+            secid = f"SH{code}"
+        elif code.startswith(("0", "3")):
+            secid = f"SZ{code}"
+        elif code.startswith(("4", "8")):
+            secid = f"BJ{code}"
+
+        if not secid:
+            return []
+
+        params = {"code": secid}
+
+        records = []
+        timeout = aiohttp.ClientTimeout(total=30, connect=10)
+        connector = aiohttp.TCPConnector(limit=10, limit_per_host=5)
+
+        async with aiohttp.ClientSession(headers=EASTMONEY_HEADERS, timeout=timeout, connector=connector) as session:
+            max_retries = 3
+            for attempt in range(max_retries):
+                try:
+                    async with session.get(self.EASTMONEY_STOCK_INDUSTRY_URL, params=params) as response:
+                        if response.status == 200:
+                            data = await response.json()
+                            break
+                        else:
+                            if attempt < max_retries - 1:
+                                await asyncio.sleep(1.0 * (attempt + 1))
+                                continue
+                            data = {}
+                except Exception as e:
+                    if attempt < max_retries - 1:
+                        await asyncio.sleep(1.0 * (attempt + 1))
+                        continue
+                    logger.warning(f"Failed to fetch stock industry for {code}: {e}")
+                    data = {}
+
+            jbzl = data.get("jbzl", {})
+            if jbzl:
+                industry_name = jbzl.get("hymc", "")
+                sector_name = jbzl.get("sshy", "")
+                
+                if industry_name:
+                    records.append({
+                        "stock_code": code,
+                        "industry_type": "industry",
+                        "industry_name": industry_name,
+                        "industry_code": "",
+                    })
+                
+                if sector_name:
+                    records.append({
+                        "stock_code": code,
+                        "industry_type": "sector",
+                        "industry_name": sector_name,
+                        "industry_code": "",
+                    })
+
+        return records
+
+    def _get_record_hash(self, record: dict[str, Any]) -> str:
+        return f"{record.get('stock_code')}_{record.get('industry_type')}"
+
+    async def _is_valid(self, record: dict[str, Any]) -> bool:
+        return record.get("stock_code") is not None and record.get("industry_name") is not None
+
+    async def _normalize_for_quant(self, data: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        return data
+
+    async def _compute_factors(self, data: list[dict[str, Any]]) -> None:
+        pass
+
+
 class ConceptDataCollector(QuantDataCollector):
     """
     Collector for concept index data.

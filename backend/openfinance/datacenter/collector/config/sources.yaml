@@ -180,3 +180,40 @@ sources:
       - "futures"
     metadata:
       description: "中国金融期货交易所"
+
+  yfinance:
+    name: "Yahoo Finance"
+    type: "library"
+    enabled: true
+    connection:
+      timeout: 60.0
+    auth:
+      type: "none"
+    rate_limit:
+      requests_per_minute: 60
+    retry:
+      max_retries: 3
+    tags:
+      - "us_stock"
+      - "global"
+    metadata:
+      description: "Yahoo Finance免费美股数据接口"
+
+  fred:
+    name: "FRED"
+    type: "api"
+    enabled: true
+    connection:
+      base_url: "https://api.stlouisfed.org/fred"
+      timeout: 30.0
+    auth:
+      type: "api_key"
+      api_key: "${FRED_API_KEY}"
+    rate_limit:
+      requests_per_minute: 1000
+    retry:
+      max_retries: 3
+    tags:
+      - "us_macro"
+    metadata:
+      description: "美联储经济数据库"

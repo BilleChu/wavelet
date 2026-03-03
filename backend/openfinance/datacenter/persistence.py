@@ -532,6 +532,28 @@ class ConfigurablePersistence:
                 },
                 save_mode=SaveMode.UPSERT,
             ),
+            "economic_calendar_events": TableConfig(
+                table_name="economic_calendar_events",
+                primary_key=["event_id"],
+                unique_keys=[["event_id"]],
+                fields={
+                    "event_id": {"type": "string", "required": True},
+                    "event_date": {"type": "date", "required": True},
+                    "event_time": {"type": "string"},
+                    "country": {"type": "string"},
+                    "currency": {"type": "string"},
+                    "importance": {"type": "string", "default": "low"},
+                    "event_name": {"type": "string", "required": True},
+                    "actual": {"type": "string"},
+                    "forecast": {"type": "string"},
+                    "previous": {"type": "string"},
+                    "source": {"type": "string", "default": "investing.com"},
+                    "is_historical": {"type": "boolean", "default": False},
+                    "collected_at": {"type": "datetime"},
+                    "updated_at": {"type": "datetime"},
+                },
+                save_mode=SaveMode.UPSERT,
+            ),
         }
         
         for table_name, table_config in builtin_tables.items():
@@ -738,6 +760,189 @@ class ConfigurablePersistence:
                 except Exception:
                     stats[table_name] = 0
         return stats
+
+    async def save_us_stock_quotes(self, data: list[Any]) -> int:
+        """Save US stock quotes to database using ORM."""
+        if not data:
+            return 0
+
+        from sqlalchemy import select
+        from datetime import datetime as dt
+        from .models.orm import USStockDailyQuoteModel
+        from openfinance.infrastructure.database.database import async_session_maker
+        
+        saved = 0
+        if async_session_maker is None:
+            logger.warning("Database session maker not available")
+            return 0
+            
+        async with async_session_maker() as session:
+            for record in data:
+                try:
+                    existing = await session.execute(
+                        select(USStockDailyQuoteModel).where(
+                            USStockDailyQuoteModel.code == record.code,
+                            USStockDailyQuoteModel.trade_date == record.trade_date
+                        )
+                    )
+                    existing_record = existing.scalar_one_or_none()
+                    
+                    if existing_record:
+                        existing_record.open = record.open
+                        existing_record.high = record.high
+                        existing_record.low = record.low
+                        existing_record.close = record.close
+                        existing_record.volume = record.volume
+                    else:
+                        new_record = USStockDailyQuoteModel(
+                            code=record.code,
+                            name=record.name,
+                            trade_date=record.trade_date,
+                            open=record.open,
+                            high=record.high,
+                            low=record.low,
+                            close=record.close,
+                            volume=record.volume,
+                        )
+                        session.add(new_record)
+                    
+                    saved += 1
+                except Exception as e:
+                    logger.warning(f"Failed to save US stock quote {record.code}: {e}")
+            
+            await session.commit()
+        
+        return saved
+
+    async def save_hk_stock_quotes(self, data: list[Any]) -> int:
+        """Save HK stock quotes to database using ORM."""
+        if not data:
+            return 0
+
+        from sqlalchemy import select
+        from datetime import datetime as dt
+        from .models.orm import HKStockDailyQuoteModel
+        from openfinance.infrastructure.database.database import async_session_maker
+        
+        saved = 0
+        if async_session_maker is None:
+            logger.warning("Database session maker not available")
+            return 0
+            
+        async with async_session_maker() as session:
+            for record in data:
+                try:
+                    existing = await session.execute(
+                        select(HKStockDailyQuoteModel).where(
+                            HKStockDailyQuoteModel.code == record.code,
+                            HKStockDailyQuoteModel.trade_date == record.trade_date
+                        )
+                    )
+                    existing_record = existing.scalar_one_or_none()
+                    
+                    if existing_record:
+                        existing_record.open = record.open
+                        existing_record.high = record.high
+                        existing_record.low = record.low
+                        existing_record.close = record.close
+                        existing_record.volume = record.volume
+                        existing_record.amount = record.amount
+                    else:
+                        new_record = HKStockDailyQuoteModel(
+                            code=record.code,
+                            name=record.name,
+                            trade_date=record.trade_date,
+                            open=record.open,
+                            high=record.high,
+                            low=record.low,
+                            close=record.close,
+                            volume=record.volume,
+                            amount=record.amount,
+                        )
+                        session.add(new_record)
+                    
+                    saved += 1
+                except Exception as e:
+                    logger.warning(f"Failed to save HK stock quote {record.code}: {e}")
+            
+            await session.commit()
+        
+        return saved
+
+    async def save_us_financial_statements(self, data: list[dict[str, Any]]) -> int:
+        """Save US financial statements to database."""
+        if not data:
+            return 0
+
+        saved = 0
+        for record in data:
+            try:
+                await self.save("us_financial_statement", [record])
+                saved += 1
+            except Exception as e:
+                logger.warning(f"Failed to save US financial statement: {e}")
+
+        return saved
+
+    async def save_us_company_info(self, data: list[dict[str, Any]]) -> int:
+        """Save US company information to database."""
+        if not data:
+            return 0
+
+        saved = 0
+        for record in data:
+            try:
+                await self.save("us_company_info", [record])
+                saved += 1
+            except Exception as e:
+                logger.warning(f"Failed to save US company info: {e}")
+
+        return saved
+
+    async def save_us_macro_data(self, data: list[dict[str, Any]]) -> int:
+        """Save US macro economic data to database."""
+        if not data:
+            return 0
+
+        saved = 0
+        for record in data:
+            try:
+                await self.save("us_macro_data", [record])
+                saved += 1
+            except Exception as e:
+                logger.warning(f"Failed to save US macro data: {e}")
+
+        return saved
+
+    async def save_hk_money_flow(self, data: list[dict[str, Any]]) -> int:
+        """Save HK money flow data to database."""
+        if not data:
+            return 0
+
+        saved = 0
+        for record in data:
+            try:
+                await self.save("hk_money_flow", [record])
+                saved += 1
+            except Exception as e:
+                logger.warning(f"Failed to save HK money flow: {e}")
+
+        return saved
+
+    async def save_hk_financial_statements(self, data: list[dict[str, Any]]) -> int:
+        """Save HK financial statements to database."""
+        if not data:
+            return 0
+
+        saved = 0
+        for record in data:
+            try:
+                await self.save("hk_financial_statement", [record])
+                saved += 1
+            except Exception as e:
+                logger.warning(f"Failed to save HK financial statement: {e}")
+
+        return saved
 
 
 persistence = ConfigurablePersistence()

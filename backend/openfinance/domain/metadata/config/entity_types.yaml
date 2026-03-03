@@ -183,27 +183,89 @@ entity_types:
   person:
     display_name: 人物
     category: reference
-    description: 人物实体
-    version: "1.0.0"
+    description: 人物实体（投资经理、KOL、企业家、分析师等）
+    version: "2.0.0"
     
     properties:
       name:
         type: string
         required: true
         index: true
+        max_length: 100
         description: 姓名
+        
+      person_type:
+        type: enum
+        values: [investment_manager, kol, entrepreneur, analyst, executive, investor]
+        index: true
+        description: 人物角色类型（投资经理/KOL/企业家/分析师/企业高管/投资人）
         
       title:
         type: string
+        max_length: 200
         description: 职位
         
       company:
         type: string
+        index: true
+        max_length: 200
         description: 所属公司
+        
+      industry:
+        type: string
+        index: true
+        max_length: 100
+        description: 主要关注行业
+        
+      focus_industries:
+        type: json
+        description: 关注的行业列表及权重
         
       biography:
         type: text
         description: 简介
+        
+      avatar_url:
+        type: string
+        max_length: 500
+        description: 头像链接
+        
+      certifications:
+        type: json
+        description: 专业资质列表，如CFA、CPA等
+        
+      social_links:
+        type: json
+        description: 社交媒体账号
+        
+      work_history:
+        type: json
+        description: 工作经历
+        
+      education:
+        type: json
+        description: 教育背景
+        
+      managed_assets:
+        type: decimal
+        precision: 20
+        scale: 4
+        description: 管理资产规模
+        
+      investment_style:
+        type: string
+        max_length: 100
+        description: 投资风格
+        
+      followers_count:
+        type: integer
+        min: 0
+        description: 粉丝数
+        
+      verified:
+        type: boolean
+        default: false
+        description: 是否认证
         
     relations:
       works_for:
@@ -211,11 +273,34 @@ entity_types:
         cardinality: many-to-one
         
       manages:
-        target_types: [company]
+        target_types: [company, fund]
         cardinality: many-to-one
         
-    searchable_fields: [name, company]
-    list_fields: [name, title, company]
+      focuses_on:
+        target_types: [industry]
+        cardinality: many-to-many
+        
+      invested_in:
+        target_types: [stock, company]
+        cardinality: many-to-many
+        
+      follows:
+        target_types: [person]
+        cardinality: many-to-many
+        
+      collaborates_with:
+        target_types: [person]
+        cardinality: many-to-many
+        
+    quality_rules:
+      - name: check_person_type
+        severity: warning
+        condition: "person_type is not null"
+        message: "人物缺少角色类型"
+        
+    searchable_fields: [name, company, title]
+    default_sort: followers_count desc
+    list_fields: [name, person_type, title, company, industry]
 
   event:
     display_name: 事件

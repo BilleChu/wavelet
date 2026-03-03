@@ -833,3 +833,479 @@ class DividendDataModel(Base):
     dividend_yield: Mapped[Optional[DECIMAL(10, 4)]] = mapped_column(Numeric(10, 4), nullable=True)
     
     collected_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), default=datetime.utcnow)
+
+
+class ResearchReportModel(Base):
+    """Research report data model."""
+
+    __tablename__ = "research_reports"
+    __table_args__ = (
+        Index("ix_research_reports_source", "source"),
+        Index("ix_research_reports_publish_date", "publish_date"),
+        Index("ix_research_reports_institution", "institution"),
+        Index("ix_research_reports_rating", "rating"),
+        {"schema": "openfinance"},
+    )
+
+    id: Mapped[str] = mapped_column(UUID(as_uuid=False), primary_key=True)
+    report_id: Mapped[str] = mapped_column(String(100), unique=True, nullable=False, index=True)
+    title: Mapped[str] = mapped_column(String(500), nullable=False)
+    summary: Mapped[str | None] = mapped_column(Text, nullable=True)
+    content: Mapped[str | None] = mapped_column(Text, nullable=True)
+    
+    source: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
+    source_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    
+    related_codes: Mapped[list[str]] = mapped_column(ARRAY(Text), default=[])
+    related_names: Mapped[list[str]] = mapped_column(ARRAY(Text), default=[])
+    industry: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    
+    institution: Mapped[str | None] = mapped_column(String(100), nullable=True, index=True)
+    analyst: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    
+    rating: Mapped[str | None] = mapped_column(String(20), nullable=True, index=True)
+    target_price: Mapped[float | None] = mapped_column(DECIMAL(12, 4), nullable=True)
+    
+    sentiment_score: Mapped[float | None] = mapped_column(DECIMAL(4, 3), nullable=True)
+    sentiment_label: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    extracted_entities: Mapped[dict[str, Any]] = mapped_column(JSON, default={})
+    extracted_relations: Mapped[dict[str, Any]] = mapped_column(JSON, default={})
+    
+    publish_date: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True), nullable=True, index=True)
+    report_date: Mapped[datetime | None] = mapped_column(Date, nullable=True)
+    
+    report_type: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    page_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    
+    collected_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), default=datetime.utcnow
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow
+    )
+
+
+class ResearchAnalystModel(Base):
+    """Research analyst data model."""
+
+    __tablename__ = "research_analysts"
+    __table_args__ = {"schema": "openfinance"}
+
+    id: Mapped[str] = mapped_column(UUID(as_uuid=False), primary_key=True)
+    analyst_id: Mapped[str] = mapped_column(String(100), unique=True, nullable=False, index=True)
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
+    institution: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    specialty: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    accuracy_score: Mapped[float | None] = mapped_column(DECIMAL(4, 3), nullable=True)
+    report_count: Mapped[int] = mapped_column(Integer, default=0)
+    
+    created_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), default=datetime.utcnow
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow
+    )
+
+
+class PersonProfileModel(Base):
+    """Person profile extension model with scores and statistics."""
+
+    __tablename__ = "person_profiles"
+    __table_args__ = {"schema": "openfinance"}
+
+    id: Mapped[str] = mapped_column(UUID(as_uuid=False), primary_key=True)
+    entity_id: Mapped[str] = mapped_column(
+        String(255), 
+        ForeignKey("openfinance.entities.entity_id", ondelete="CASCADE"),
+        unique=True, 
+        nullable=False, 
+        index=True
+    )
+    
+    total_score: Mapped[float] = mapped_column(DECIMAL(5, 2), default=0)
+    influence_score: Mapped[float] = mapped_column(DECIMAL(5, 2), default=0)
+    activity_score: Mapped[float] = mapped_column(DECIMAL(5, 2), default=0)
+    accuracy_score: Mapped[float] = mapped_column(DECIMAL(5, 2), default=0)
+    network_score: Mapped[float] = mapped_column(DECIMAL(5, 2), default=0)
+    industry_score: Mapped[float] = mapped_column(DECIMAL(5, 2), default=0)
+    
+    followers_count: Mapped[int] = mapped_column(Integer, default=0)
+    news_mentions: Mapped[int] = mapped_column(Integer, default=0)
+    report_count: Mapped[int] = mapped_column(Integer, default=0)
+    managed_assets: Mapped[float | None] = mapped_column(DECIMAL(20, 4), nullable=True)
+    
+    industry_scores: Mapped[dict[str, Any]] = mapped_column(JSONB, default={})
+    properties: Mapped[dict[str, Any]] = mapped_column(JSONB, default={})
+    
+    created_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), default=datetime.utcnow
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow
+    )
+    last_synced_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True), nullable=True)
+
+    entity: Mapped["EntityModel"] = relationship(
+        "EntityModel", foreign_keys=[entity_id], backref="person_profile"
+    )
+
+
+class PersonActivityModel(Base):
+    """Person activity timeline model."""
+
+    __tablename__ = "person_activities"
+    __table_args__ = (
+        Index("ix_person_activities_entity", "entity_id"),
+        Index("ix_person_activities_date", "activity_date"),
+        {"schema": "openfinance"},
+    )
+
+    id: Mapped[str] = mapped_column(UUID(as_uuid=False), primary_key=True)
+    activity_id: Mapped[str] = mapped_column(String(100), unique=True, nullable=False, index=True)
+    entity_id: Mapped[str] = mapped_column(
+        String(255), 
+        ForeignKey("openfinance.entities.entity_id", ondelete="CASCADE"),
+        nullable=False, 
+        index=True
+    )
+    
+    activity_type: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
+    title: Mapped[str] = mapped_column(String(500), nullable=False)
+    content: Mapped[str | None] = mapped_column(Text, nullable=True)
+    source: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    source_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    
+    industry: Mapped[str | None] = mapped_column(String(100), nullable=True, index=True)
+    
+    sentiment_score: Mapped[float | None] = mapped_column(DECIMAL(4, 3), nullable=True)
+    impact_score: Mapped[float | None] = mapped_column(DECIMAL(5, 2), nullable=True)
+    
+    related_codes: Mapped[list[str]] = mapped_column(ARRAY(Text), default=[])
+    related_entities: Mapped[list[str]] = mapped_column(ARRAY(Text), default=[])
+    
+    activity_date: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True), nullable=True, index=True)
+    collected_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), default=datetime.utcnow
+    )
+
+    entity: Mapped["EntityModel"] = relationship(
+        "EntityModel", foreign_keys=[entity_id]
+    )
+
+
+class PersonIndustryScoreModel(Base):
+    """Person industry-specific score history model."""
+
+    __tablename__ = "person_industry_scores"
+    __table_args__ = (
+        Index("ix_person_industry_scores_entity", "entity_id"),
+        Index("ix_person_industry_scores_industry", "industry"),
+        {"schema": "openfinance"},
+    )
+
+    id: Mapped[str] = mapped_column(UUID(as_uuid=False), primary_key=True)
+    entity_id: Mapped[str] = mapped_column(
+        String(255), 
+        ForeignKey("openfinance.entities.entity_id", ondelete="CASCADE"),
+        nullable=False
+    )
+    industry: Mapped[str] = mapped_column(String(100), nullable=False)
+    score_date: Mapped[datetime] = mapped_column(Date, nullable=False, index=True)
+    
+    total_score: Mapped[float | None] = mapped_column(DECIMAL(5, 2), nullable=True)
+    expertise_score: Mapped[float | None] = mapped_column(DECIMAL(5, 2), nullable=True)
+    influence_score: Mapped[float | None] = mapped_column(DECIMAL(5, 2), nullable=True)
+    accuracy_score: Mapped[float | None] = mapped_column(DECIMAL(5, 2), nullable=True)
+    
+    metrics: Mapped[dict[str, Any]] = mapped_column(JSONB, default={})
+    
+    created_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), default=datetime.utcnow
+    )
+
+
+class PersonScoreHistoryModel(Base):
+    """Person overall score history model."""
+
+    __tablename__ = "person_score_history"
+    __table_args__ = {"schema": "openfinance"}
+
+    id: Mapped[str] = mapped_column(UUID(as_uuid=False), primary_key=True)
+    entity_id: Mapped[str] = mapped_column(
+        String(255), 
+        ForeignKey("openfinance.entities.entity_id", ondelete="CASCADE"),
+        nullable=False,
+        index=True
+    )
+    score_date: Mapped[datetime] = mapped_column(Date, nullable=False, index=True)
+    
+    total_score: Mapped[float | None] = mapped_column(DECIMAL(5, 2), nullable=True)
+    influence_score: Mapped[float | None] = mapped_column(DECIMAL(5, 2), nullable=True)
+    activity_score: Mapped[float | None] = mapped_column(DECIMAL(5, 2), nullable=True)
+    accuracy_score: Mapped[float | None] = mapped_column(DECIMAL(5, 2), nullable=True)
+    network_score: Mapped[float | None] = mapped_column(DECIMAL(5, 2), nullable=True)
+    industry_score: Mapped[float | None] = mapped_column(DECIMAL(5, 2), nullable=True)
+    
+    metrics: Mapped[dict[str, Any]] = mapped_column(JSONB, default={})
+    
+    created_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), default=datetime.utcnow
+    )
+
+
+class PersonMentionModel(Base):
+    """Person mention in news and reports model."""
+
+    __tablename__ = "person_mentions"
+    __table_args__ = (
+        Index("ix_person_mentions_entity", "entity_id"),
+        Index("ix_person_mentions_type", "mention_type"),
+        {"schema": "openfinance"},
+    )
+
+    id: Mapped[str] = mapped_column(UUID(as_uuid=False), primary_key=True)
+    entity_id: Mapped[str] = mapped_column(
+        String(255), 
+        ForeignKey("openfinance.entities.entity_id", ondelete="CASCADE"),
+        nullable=False,
+        index=True
+    )
+    
+    mention_type: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
+    mention_id: Mapped[str] = mapped_column(String(100), nullable=False)
+    
+    title: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    summary: Mapped[str | None] = mapped_column(Text, nullable=True)
+    source_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    
+    sentiment_score: Mapped[float | None] = mapped_column(DECIMAL(4, 3), nullable=True)
+    
+    related_codes: Mapped[list[str]] = mapped_column(ARRAY(Text), default=[])
+    related_industries: Mapped[list[str]] = mapped_column(ARRAY(Text), default=[])
+    
+    mention_date: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True), nullable=True, index=True)
+    collected_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), default=datetime.utcnow
+    )
+
+
+class USStockDailyQuoteModel(Base):
+    """US stock daily quote model."""
+
+    __tablename__ = "us_stock_daily_quote"
+    __table_args__ = (
+        UniqueConstraint("code", "trade_date", name="uq_us_stock_quote_code_date"),
+        Index("ix_us_stock_daily_quote_code", "code"),
+        Index("ix_us_stock_daily_quote_date", "trade_date"),
+        {"schema": "openfinance"},
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    code: Mapped[str] = mapped_column(String(20), nullable=False)
+    name: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    trade_date: Mapped[datetime] = mapped_column(Date, nullable=False)
+    open: Mapped[float | None] = mapped_column(DECIMAL(18, 4), nullable=True)
+    high: Mapped[float | None] = mapped_column(DECIMAL(18, 4), nullable=True)
+    low: Mapped[float | None] = mapped_column(DECIMAL(18, 4), nullable=True)
+    close: Mapped[float | None] = mapped_column(DECIMAL(18, 4), nullable=True)
+    volume: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    collected_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), default=datetime.utcnow
+    )
+
+
+class HKStockDailyQuoteModel(Base):
+    """HK stock daily quote model."""
+
+    __tablename__ = "hk_stock_daily_quote"
+    __table_args__ = (
+        UniqueConstraint("code", "trade_date", name="uq_hk_stock_quote_code_date"),
+        Index("ix_hk_stock_daily_quote_code", "code"),
+        Index("ix_hk_stock_daily_quote_date", "trade_date"),
+        {"schema": "openfinance"},
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    code: Mapped[str] = mapped_column(String(20), nullable=False)
+    name: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    trade_date: Mapped[datetime] = mapped_column(Date, nullable=False)
+    open: Mapped[float | None] = mapped_column(DECIMAL(18, 4), nullable=True)
+    high: Mapped[float | None] = mapped_column(DECIMAL(18, 4), nullable=True)
+    low: Mapped[float | None] = mapped_column(DECIMAL(18, 4), nullable=True)
+    close: Mapped[float | None] = mapped_column(DECIMAL(18, 4), nullable=True)
+    volume: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    amount: Mapped[float | None] = mapped_column(DECIMAL(20, 4), nullable=True)
+    collected_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), default=datetime.utcnow
+    )
+
+
+class USCompanyInfoModel(Base):
+    """US company info model."""
+
+    __tablename__ = "us_company_info"
+    __table_args__ = (
+        UniqueConstraint("symbol", name="uq_us_company_info_symbol"),
+        {"schema": "openfinance"},
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    symbol: Mapped[str] = mapped_column(String(20), nullable=False, unique=True)
+    company_name: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    sector: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    industry: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    country: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    website: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    market_cap: Mapped[float | None] = mapped_column(BigInteger, nullable=True)
+    pe_ratio: Mapped[float | None] = mapped_column(DECIMAL(10, 4), nullable=True)
+    forward_pe: Mapped[float | None] = mapped_column(DECIMAL(10, 4), nullable=True)
+    dividend_yield: Mapped[float | None] = mapped_column(DECIMAL(10, 4), nullable=True)
+    beta: Mapped[float | None] = mapped_column(DECIMAL(10, 4), nullable=True)
+    avg_volume: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    fifty_two_week_high: Mapped[float | None] = mapped_column(DECIMAL(18, 4), nullable=True)
+    fifty_two_week_low: Mapped[float | None] = mapped_column(DECIMAL(18, 4), nullable=True)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    collected_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), default=datetime.utcnow
+    )
+
+
+class USFinancialStatementModel(Base):
+    """US financial statement model."""
+
+    __tablename__ = "us_financial_statement"
+    __table_args__ = (
+        UniqueConstraint("symbol", "statement_type", "item", "report_date", name="uq_us_financial_statement"),
+        Index("ix_us_financial_statement_symbol", "symbol"),
+        Index("ix_us_financial_statement_date", "report_date"),
+        {"schema": "openfinance"},
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    symbol: Mapped[str] = mapped_column(String(20), nullable=False)
+    statement_type: Mapped[str] = mapped_column(String(20), nullable=False)
+    item: Mapped[str] = mapped_column(String(100), nullable=False)
+    value: Mapped[float | None] = mapped_column(DECIMAL(20, 4), nullable=True)
+    report_date: Mapped[datetime] = mapped_column(Date, nullable=False)
+    collected_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), default=datetime.utcnow
+    )
+
+
+class HKMoneyFlowModel(Base):
+    """HK money flow model."""
+
+    __tablename__ = "hk_money_flow"
+    __table_args__ = (
+        UniqueConstraint("code", "trade_date", name="uq_hk_money_flow_code_date"),
+        Index("ix_hk_money_flow_code", "code"),
+        Index("ix_hk_money_flow_date", "trade_date"),
+        {"schema": "openfinance"},
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    code: Mapped[str] = mapped_column(String(20), nullable=False)
+    name: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    trade_date: Mapped[datetime] = mapped_column(Date, nullable=False)
+    main_net_inflow: Mapped[float | None] = mapped_column(DECIMAL(20, 4), nullable=True)
+    main_net_inflow_pct: Mapped[float | None] = mapped_column(DECIMAL(10, 4), nullable=True)
+    super_large_net_inflow: Mapped[float | None] = mapped_column(DECIMAL(20, 4), nullable=True)
+    large_net_inflow: Mapped[float | None] = mapped_column(DECIMAL(20, 4), nullable=True)
+    medium_net_inflow: Mapped[float | None] = mapped_column(DECIMAL(20, 4), nullable=True)
+    small_net_inflow: Mapped[float | None] = mapped_column(DECIMAL(20, 4), nullable=True)
+    collected_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), default=datetime.utcnow
+    )
+
+
+class HKFinancialStatementModel(Base):
+    """HK financial statement model."""
+
+    __tablename__ = "hk_financial_statement"
+    __table_args__ = (
+        UniqueConstraint("symbol", "statement_type", "report_date", name="uq_hk_financial_statement"),
+        Index("ix_hk_financial_statement_symbol", "symbol"),
+        Index("ix_hk_financial_statement_date", "report_date"),
+        {"schema": "openfinance"},
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    symbol: Mapped[str] = mapped_column(String(20), nullable=False)
+    statement_type: Mapped[str] = mapped_column(String(20), nullable=False)
+    report_date: Mapped[datetime] = mapped_column(Date, nullable=False)
+    total_revenue: Mapped[float | None] = mapped_column(DECIMAL(20, 4), nullable=True)
+    operating_revenue: Mapped[float | None] = mapped_column(DECIMAL(20, 4), nullable=True)
+    operating_profit: Mapped[float | None] = mapped_column(DECIMAL(20, 4), nullable=True)
+    net_profit: Mapped[float | None] = mapped_column(DECIMAL(20, 4), nullable=True)
+    net_profit_attr_parent: Mapped[float | None] = mapped_column(DECIMAL(20, 4), nullable=True)
+    basic_eps: Mapped[float | None] = mapped_column(DECIMAL(10, 4), nullable=True)
+    collected_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), default=datetime.utcnow
+    )
+
+
+class USMacroDataModel(Base):
+    """US macro economic data model."""
+
+    __tablename__ = "us_macro_data"
+    __table_args__ = (
+        UniqueConstraint("indicator_code", "period", name="uq_us_macro_data"),
+        Index("ix_us_macro_data_indicator", "indicator_code"),
+        Index("ix_us_macro_data_period", "period"),
+        {"schema": "openfinance"},
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    indicator_code: Mapped[str] = mapped_column(String(20), nullable=False)
+    indicator_name: Mapped[str] = mapped_column(String(100), nullable=False)
+    value: Mapped[float] = mapped_column(DECIMAL(20, 4), nullable=False)
+    period: Mapped[datetime] = mapped_column(Date, nullable=False)
+    country: Mapped[str] = mapped_column(String(20), default="US")
+    source: Mapped[str] = mapped_column(String(20), default="fred")
+    collected_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), default=datetime.utcnow
+    )
+
+
+class EconomicCalendarEventModel(Base):
+    """Economic calendar event model for storing financial calendar events."""
+
+    __tablename__ = "economic_calendar_events"
+    __table_args__ = (
+        UniqueConstraint("event_id", name="uq_economic_calendar_event"),
+        Index("ix_economic_calendar_event_date", "event_date"),
+        Index("ix_economic_calendar_country", "country"),
+        Index("ix_economic_calendar_importance", "importance"),
+        Index("ix_economic_calendar_currency", "currency"),
+        {"schema": "openfinance"},
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    event_id: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
+    
+    event_date: Mapped[datetime] = mapped_column(Date, nullable=False, index=True)
+    event_time: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    
+    country: Mapped[str | None] = mapped_column(String(50), nullable=True, index=True)
+    currency: Mapped[str | None] = mapped_column(String(10), nullable=True, index=True)
+    
+    importance: Mapped[str] = mapped_column(String(20), default="low", index=True)
+    event_name: Mapped[str] = mapped_column(String(500), nullable=False)
+    
+    actual: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    forecast: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    previous: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    
+    impact_score: Mapped[float | None] = mapped_column(DECIMAL(5, 2), nullable=True)
+    category: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    source: Mapped[str] = mapped_column(String(50), default="investing.com")
+    source_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    
+    is_historical: Mapped[bool] = mapped_column(default=False, index=True)
+    
+    collected_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), default=datetime.utcnow
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow
+    )

@@ -18,6 +18,7 @@ from openfinance.quant.api.routes.analytics import router as analytics_router
 from openfinance.quant.api.routes.strategies import router as strategies_router
 from openfinance.quant.api.routes.factor_creator import router as factor_creator_router
 from openfinance.quant.api.routes.strategy_creator import router as strategy_creator_router
+from openfinance.quant.api.routes.backtest import router as backtest_router
 from openfinance.quant.factors.registry import get_factor_registry
 
 logger = logging.getLogger(__name__)
@@ -53,3 +54,4 @@ router.include_router(analytics_router)
 router.include_router(strategies_router)
 router.include_router(factor_creator_router)
 router.include_router(strategy_creator_router)
+router.include_router(backtest_router)

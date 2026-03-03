@@ -1,0 +1,55 @@
+version: "1.0"
+metadata:
+  namespace: openfinance
+  description: 行业事件因子定义
+
+factor_id: factor_industry_event
+name: Industry Event Score
+display_name: 行业事件评分
+description: 评估行业事件影响，包括政策事件、市场事件、技术突破事件
+factor_type: industry
+category: sentiment
+version: "1.0.0"
+author: system
+tags: [industry, event, policy, knowledge_graph]
+
+indicators:
+  POLICY_EVENTS:
+    name: 政策事件影响
+    weight: 0.35
+    score_formula: "value"
+    data_source: event_graph
+    description: 政策事件对行业的影响评分
+    
+  MARKET_EVENTS:
+    name: 市场事件影响
+    weight: 0.3
+    score_formula: "value"
+    data_source: event_graph
+    description: 市场事件对行业的影响评分
+    
+  TECH_BREAKTHROUGH:
+    name: 技术突破事件
+    weight: 0.35
+    score_formula: "value"
+    data_source: event_graph
+    description: 技术突破事件对行业的影响评分
+
+event_scoring:
+  importance_weights:
+    critical: 1.0
+    high: 0.7
+    medium: 0.4
+    low: 0.2
+  
+  direction_multipliers:
+    positive: 1
+    negative: -1
+    neutral: 0
+  
+  time_decay_days: 30
+  time_decay_min: 0.1
+
+output:
+  type: float
+  range: [0, 100]

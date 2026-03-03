@@ -1,0 +1,48 @@
+version: "1.0"
+metadata:
+  namespace: openfinance
+  description: 市场估值因子定义
+
+factor_id: factor_market_valuation
+name: Market Valuation Score
+display_name: 市场估值评分
+description: 评估市场估值水平，包括PE、PB、PE分位、风险溢价
+factor_type: fundamental
+category: value
+version: "1.0.0"
+author: system
+tags: [market, valuation, pe, pb]
+
+indicators:
+  MARKET_PE:
+    name: 市场PE
+    weight: 0.35
+    optimal_range: [12, 18]
+    score_formula: "max(0, 100 - abs(value - 15) * 5)"
+    data_source: market_index
+    
+  MARKET_PB:
+    name: 市场PB
+    weight: 0.25
+    optimal_range: [1.5, 2.5]
+    score_formula: "max(0, 100 - abs(value - 2) * 30)"
+    data_source: market_index
+    
+  PE_PERCENTILE:
+    name: PE历史分位
+    weight: 0.2
+    score_formula: "100 - value"
+    data_source: market_index
+    unit: "%"
+    
+  RISK_PREMIUM:
+    name: 股权风险溢价
+    weight: 0.2
+    optimal_range: [2.0, 4.0]
+    score_formula: "min(100, value * 25)"
+    data_source: market_index
+    unit: "%"
+
+output:
+  type: float
+  range: [0, 100]

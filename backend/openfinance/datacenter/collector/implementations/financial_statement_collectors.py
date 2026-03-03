@@ -1,8 +1,9 @@
 """
-Financial report data collectors migrated from qstock report.py.
+Financial statement data collectors for batch collection.
 
-This module provides collectors for financial report data including
-balance sheet, income statement, cash flow statement, and performance reports.
+This module provides collectors for batch financial statement data collection
+including balance sheet, income statement, cash flow statement, and performance reports.
+All collectors in this module collect data by date (all stocks for a specific date).
 """
 
 import json
@@ -23,10 +24,10 @@ from ..quant_collector import FundamentalDataCollector
 logger = logging.getLogger(__name__)
 
 
-class BalanceSheetCollector(FundamentalDataCollector):
+class BatchBalanceSheetCollector(FundamentalDataCollector):
     """
-    Collector for balance sheet data.
-    Migrated from qstock report.py balance_sheet function.
+    Batch collector for balance sheet data by date.
+    Collects balance sheet data for all stocks on a specific report date.
     """
 
     def __init__(self, config: CollectionConfig | None = None) -> None:
@@ -95,13 +96,22 @@ class BalanceSheetCollector(FundamentalDataCollector):
                         "name": item.get("SECURITY_NAME_ABBR"),
                         "report_date": item.get("REPORT_DATE"),
                         "total_assets": item.get("TOTAL_ASSETS"),
-                        "monetary_funds": item.get("MONETARY_CAPITAL"),
+                        "total_current_assets": item.get("TOTAL_CURRENT_ASSETS"),
+                        "total_non_current_assets": item.get("TOTAL_NONCURRENT_ASSETS"),
+                        "cash": item.get("MONETARY_CAPITAL"),
                         "accounts_receivable": item.get("ACCOUNT_RECEIVABLE"),
                         "inventory": item.get("INVENTORY"),
+                        "fixed_assets": item.get("FIXED_ASSETS"),
+                        "intangible_assets": item.get("INTANGIBLE_ASSETS"),
                         "total_liabilities": item.get("TOTAL_LIABILITIES"),
+                        "total_current_liabilities": item.get("TOTAL_CURRENT_LIABILITIES"),
+                        "total_non_current_liabilities": item.get("TOTAL_NONCURRENT_LIABILITIES"),
+                        "short_term_debt": item.get("SHORT_TERM_LOAN"),
+                        "long_term_debt": item.get("LONG_TERM_LOAN"),
                         "accounts_payable": item.get("ACCOUNTS_PAYABLE"),
-                        "shareholders_equity": item.get("TOTAL_EQUITY"),
-                        "asset_liability_ratio": item.get("ASSET_LIAB_RATIO"),
+                        "total_equity": item.get("TOTAL_EQUITY"),
+                        "paid_in_capital": item.get("PAID_IN_CAPITAL"),
+                        "retained_earnings": item.get("RETAINED_EARNINGS"),
                     })
 
                 page += 1
@@ -131,10 +141,10 @@ class BalanceSheetCollector(FundamentalDataCollector):
             return f"{year}0930"
 
 
-class IncomeStatementCollector(FundamentalDataCollector):
+class BatchIncomeStatementCollector(FundamentalDataCollector):
     """
-    Collector for income statement data.
-    Migrated from qstock report.py income_statement function.
+    Batch collector for income statement data by date.
+    Collects income statement data for all stocks on a specific report date.
     """
 
     def __init__(self, config: CollectionConfig | None = None) -> None:
@@ -202,15 +212,20 @@ class IncomeStatementCollector(FundamentalDataCollector):
                         "code": item.get("SECURITY_CODE"),
                         "name": item.get("SECURITY_NAME_ABBR"),
                         "report_date": item.get("REPORT_DATE"),
-                        "net_profit": item.get("PARENT_NETPROFIT"),
                         "total_revenue": item.get("TOTAL_OPERATE_INCOME"),
-                        "total_cost": item.get("TOTAL_OPERATE_COST"),
-                        "operating_cost": item.get("OPERATE_COST"),
-                        "selling_expense": item.get("SALE_EXPENSE"),
-                        "admin_expense": item.get("MANAGE_EXPENSE"),
-                        "financial_expense": item.get("FINANCE_EXPENSE"),
+                        "operating_revenue": item.get("OPERATE_INCOME"),
+                        "total_operating_cost": item.get("TOTAL_OPERATE_COST"),
+                        "cost_of_goods_sold": item.get("OPERATE_COST"),
+                        "selling_expenses": item.get("SALE_EXPENSE"),
+                        "admin_expenses": item.get("MANAGE_EXPENSE"),
+                        "rd_expenses": item.get("RESEARCH_EXPENSE"),
+                        "finance_expenses": item.get("FINANCE_EXPENSE"),
                         "operating_profit": item.get("OPERATE_PROFIT"),
                         "total_profit": item.get("TOTAL_PROFIT"),
+                        "net_profit": item.get("NET_PROFIT"),
+                        "net_profit_attr_parent": item.get("PARENT_NETPROFIT"),
+                        "income_tax": item.get("INCOME_TAX"),
+                        "basic_eps": item.get("BASIC_EPS"),
                     })
 
                 page += 1
@@ -240,10 +255,10 @@ class IncomeStatementCollector(FundamentalDataCollector):
             return f"{year}0930"
 
 
-class CashFlowStatementCollector(FundamentalDataCollector):
+class BatchCashFlowStatementCollector(FundamentalDataCollector):
     """
-    Collector for cash flow statement data.
-    Migrated from qstock report.py cashflow_statement function.
+    Batch collector for cash flow statement data by date.
+    Collects cash flow statement data for all stocks on a specific report date.
     """
 
     def __init__(self, config: CollectionConfig | None = None) -> None:
@@ -311,9 +326,9 @@ class CashFlowStatementCollector(FundamentalDataCollector):
                         "code": item.get("SECURITY_CODE"),
                         "name": item.get("SECURITY_NAME_ABBR"),
                         "report_date": item.get("REPORT_DATE"),
-                        "net_operating_cash_flow": item.get("OPERATE_CASH_FLOW_PS"),
-                        "net_investing_cash_flow": item.get("INVEST_CASH_FLOW_PS"),
-                        "net_financing_cash_flow": item.get("FINANCE_CASH_FLOW_PS"),
+                        "net_operating_cash_flow": item.get("NETCASH_OPERATE"),
+                        "net_investing_cash_flow": item.get("NETCASH_INVEST"),
+                        "net_financing_cash_flow": item.get("NETCASH_FINANCE"),
                     })
 
                 page += 1
@@ -343,10 +358,10 @@ class CashFlowStatementCollector(FundamentalDataCollector):
             return f"{year}0930"
 
 
-class PerformanceReportCollector(FundamentalDataCollector):
+class BatchPerformanceReportCollector(FundamentalDataCollector):
     """
-    Collector for performance report data.
-    Migrated from qstock report.py stock_yjbb function.
+    Batch collector for performance report data by date.
+    Collects performance report data for all stocks on a specific report date.
     """
 
     def __init__(self, config: CollectionConfig | None = None) -> None:
@@ -459,10 +474,10 @@ class PerformanceReportCollector(FundamentalDataCollector):
             return None
 
 
-class PerformanceForecastCollector(FundamentalDataCollector):
+class BatchPerformanceForecastCollector(FundamentalDataCollector):
     """
-    Collector for performance forecast data.
-    Migrated from qstock report.py stock_yjyg function.
+    Batch collector for performance forecast data by date.
+    Collects performance forecast data for all stocks on a specific report date.
     """
 
     def __init__(self, config: CollectionConfig | None = None) -> None:

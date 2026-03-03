@@ -1,0 +1,43 @@
+version: "1.0"
+metadata:
+  namespace: openfinance
+  description: 全球宏观通胀因子定义
+
+factor_id: factor_global_macro_inflation
+name: Global Macro Inflation Score
+display_name: 全球宏观通胀评分
+description: 评估美国通胀水平，包括CPI、核心CPI、PCE
+factor_type: macro
+category: economic
+version: "1.0.0"
+author: system
+tags: [macro, global, inflation, cpi]
+
+indicators:
+  US_CPI:
+    name: 美国CPI
+    weight: 0.4
+    optimal_range: [2.0, 3.0]
+    score_formula: "max(0, 100 - abs(value - 2.5) * 30)"
+    data_source: macro_economic
+    unit: "%"
+    
+  US_CORE_CPI:
+    name: 核心CPI
+    weight: 0.35
+    optimal_range: [2.0, 2.5]
+    score_formula: "max(0, 100 - abs(value - 2.25) * 25)"
+    data_source: macro_economic
+    unit: "%"
+    
+  US_PCE:
+    name: PCE物价指数
+    weight: 0.25
+    optimal_range: [2.0, 2.5]
+    score_formula: "max(0, 100 - abs(value - 2.25) * 25)"
+    data_source: macro_economic
+    unit: "%"
+
+output:
+  type: float
+  range: [0, 100]

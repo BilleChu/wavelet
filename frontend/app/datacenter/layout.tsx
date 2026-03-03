@@ -11,12 +11,16 @@ import {
   Wifi,
   WifiOff,
   ArrowLeft,
+  FileText,
+  Users,
 } from 'lucide-react'
 
 const subTabs = [
   { key: 'collection', label: '数据采集', icon: Activity, path: '/datacenter' },
   { key: 'pipeline', label: '任务链路', icon: Database, path: '/datacenter/pipeline' },
   { key: 'service', label: '数据服务', icon: Server, path: '/datacenter/service' },
+  { key: 'research-reports', label: '研报服务', icon: FileText, path: '/datacenter/research-reports' },
+  { key: 'persons', label: '人物档案', icon: Users, path: '/datacenter/persons' },
 ]
 
 export default function DataCenterLayout({
@@ -42,7 +46,7 @@ export default function DataCenterLayout({
     return () => clearInterval(interval)
   }, [])
 
-  const activeTab = pathname === '/datacenter' ? 'collection' : pathname.includes('/pipeline') ? 'pipeline' : 'service'
+  const activeTab = pathname === '/datacenter' ? 'collection' : pathname.includes('/pipeline') ? 'pipeline' : pathname.includes('/research-reports') ? 'research-reports' : pathname.includes('/persons') ? 'persons' : 'service'
 
   return (
     <div className="min-h-screen bg-[var(--bg-primary)]">

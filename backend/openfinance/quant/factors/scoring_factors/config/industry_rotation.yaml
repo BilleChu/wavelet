@@ -1,0 +1,40 @@
+version: "1.0"
+metadata:
+  namespace: openfinance
+  description: 行业轮动因子定义
+
+factor_id: factor_industry_rotation
+name: Industry Rotation Score
+display_name: 行业轮动评分
+description: 评估行业轮动，包括相对强度、动量得分、板块资金流向
+factor_type: industry
+category: rotation
+version: "1.0.0"
+author: system
+tags: [industry, rotation, momentum]
+
+indicators:
+  RELATIVE_STRENGTH:
+    name: 相对强度
+    weight: 0.35
+    score_formula: "min(100, max(0, 50 + (ind_ret - mkt_ret) * 5))"
+    data_source: industry_quote
+    description: 行业收益相对市场收益
+    
+  MOMENTUM_SCORE:
+    name: 动量得分
+    weight: 0.3
+    score_formula: "min(100, max(0, 50 + r5 * 3 + r20 * 2))"
+    data_source: industry_quote
+    description: 5日和20日动量综合
+    
+  SECTOR_FUND_FLOW:
+    name: 板块资金流向
+    weight: 0.35
+    score_formula: "min(100, max(0, 50 + value / 1000000000 * 10))"
+    data_source: capital_flow
+    unit: "元"
+
+output:
+  type: float
+  range: [0, 100]

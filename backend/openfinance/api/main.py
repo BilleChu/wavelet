@@ -26,8 +26,11 @@ from openfinance.api.routes.intent import router as intent_router
 from openfinance.api.routes.skills import router as skills_router
 from openfinance.api.routes.metadata import router as metadata_router
 from openfinance.api.routes.pipeline import router as pipeline_router
+from openfinance.api.routes.person import router as person_router
+from openfinance.api.routes.research_reports import router as research_reports_router
 from openfinance.api.websocket import router as websocket_router
 from openfinance.quant.api import router as quant_router
+from openfinance.datacenter.api.calendar_routes import router as calendar_router
 from openfinance.infrastructure.logging.logging_config import get_logger, setup_logging
 from openfinance.domain.metadata import initialize_registries
 
@@ -40,6 +43,10 @@ logger = get_logger(__name__)
 async def lifespan(app: FastAPI):
     """Application lifespan handler."""
     logger.info("Starting OpenFinance API server...")
+    
+    from openfinance.infrastructure.database.database import init_db
+    await init_db()
+    logger.info("Database tables initialized")
     
     initialize_registries()
     logger.info("Metadata registries initialized")
@@ -93,7 +100,10 @@ def create_app(
     app.include_router(dataservice_router, prefix="/api", tags=["DataService"])
     app.include_router(metadata_router, prefix="/api", tags=["Metadata"])
     app.include_router(pipeline_router, prefix="/api", tags=["Pipeline"])
+    app.include_router(person_router, prefix="/api", tags=["Persons"])
+    app.include_router(research_reports_router, prefix="/api", tags=["ResearchReports"])
     app.include_router(websocket_router, prefix="/ws", tags=["WebSocket"])
+    app.include_router(calendar_router, prefix="/api/datacenter", tags=["EconomicCalendar"])
 
     @app.exception_handler(Exception)
     async def global_exception_handler(request: Request, exc: Exception):

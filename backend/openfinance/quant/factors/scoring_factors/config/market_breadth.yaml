@@ -1,0 +1,45 @@
+version: "1.0"
+metadata:
+  namespace: openfinance
+  description: 市场广度因子定义
+
+factor_id: factor_market_breadth
+name: Market Breadth Score
+display_name: 市场广度评分
+description: 评估市场广度，包括涨跌比、创新高新低比、站上MA20占比、上涨板块占比
+factor_type: technical
+category: momentum
+version: "1.0.0"
+author: system
+tags: [market, breadth, advance_decline]
+
+indicators:
+  ADVANCE_DECLINE_RATIO:
+    name: 涨跌比
+    weight: 0.3
+    score_formula: "min(100, max(0, 50 + (adv - dec) / max(1, adv + dec) * 100))"
+    data_source: market_statistics
+    
+  NEW_HIGH_LOW_RATIO:
+    name: 创新高/新低比
+    weight: 0.25
+    score_formula: "min(100, max(0, 50 + (highs - lows) / max(1, highs + lows) * 50))"
+    data_source: market_statistics
+    
+  STOCKS_ABOVE_MA20:
+    name: 站上MA20股票占比
+    weight: 0.25
+    score_formula: "value"
+    data_source: market_statistics
+    unit: "%"
+    
+  RISING_SECTOR_RATIO:
+    name: 上涨板块占比
+    weight: 0.2
+    score_formula: "value"
+    data_source: market_statistics
+    unit: "%"
+
+output:
+  type: float
+  range: [0, 100]

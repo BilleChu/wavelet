@@ -53,6 +53,9 @@ import {
   FactorTestResult,
   FactorDataResponse,
   StrategyRunResponse,
+  BacktestConfigOptions,
+  BacktestStatusResponse,
+  BacktestReportResponse,
 } from '@/services/quantService';
 import { API_BASE_URL } from '@/services/apiConfig';
 import { factorTypeLabels, categoryLabels, formatPercent, formatNumber } from '@/constants/quant';
@@ -118,6 +121,19 @@ export default function QuantPage() {
   const [deletingFactor, setDeletingFactor] = useState<string | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
+  const [backtestConfigs, setBacktestConfigs] = useState<BacktestConfigOptions | null>(null);
+  const [backtestStrategyId, setBacktestStrategyId] = useState<string>('');
+  const [backtestStartDate, setBacktestStartDate] = useState<string>('');
+  const [backtestEndDate, setBacktestEndDate] = useState<string>('');
+  const [backtestInitialCapital, setBacktestInitialCapital] = useState<number>(1000000);
+  const [backtestBenchmark, setBacktestBenchmark] = useState<string>('000300');
+  const [backtestCommissionRate, setBacktestCommissionRate] = useState<number>(0.0003);
+  const [backtestSlippage, setBacktestSlippage] = useState<number>(0.001);
+  const [backtestRunning, setBacktestRunning] = useState(false);
+  const [backtestProgress, setBacktestProgress] = useState<BacktestStatusResponse | null>(null);
+  const [backtestReport, setBacktestReport] = useState<BacktestReportResponse | null>(null);
+  const [backtestHistory, setBacktestHistory] = useState<{ total: number; backtests: any[] } | null>(null);
+
   useEffect(() => {
     setMounted(true);
   }, []);
@@ -150,8 +166,23 @@ export default function QuantPage() {
     if (mounted) {
       loadFactors();
       loadStrategies();
+      loadBacktestConfigs();
     }
   }, [mounted, loadFactors, loadStrategies]);
+
+  const loadBacktestConfigs = useCallback(async () => {
+    try {
+      const configs = await quantService.getBacktestConfigs();
+      setBacktestConfigs(configs);
+      setBacktestStartDate(configs.default_params.start_date);
+      setBacktestEndDate(configs.default_params.end_date);
+      setBacktestInitialCapital(configs.default_params.initial_capital);
+      setBacktestCommissionRate(configs.default_params.commission_rate);
+      setBacktestSlippage(configs.default_params.slippage);
+    } catch (error) {
+      console.error('Failed to load backtest configs:', error);
+    }
+  }, []);
 
   const loadFactorCode = useCallback(async (factorId: string) => {
     setCodeLoading(true);
@@ -200,22 +231,57 @@ export default function QuantPage() {
   }, [selectedFactor, loadFactors]);
 
   const handleRunBacktest = async () => {
-    if (!selectedStrategy) return;
+    if (!backtestStrategyId) return;
 
-    setLoading(true);
+    setBacktestRunning(true);
+    setBacktestProgress(null);
+    setBacktestReport(null);
+    
     try {
-      const result = await quantService.runBacktest({
-        strategy_id: selectedStrategy.strategy_id,
-        start_date: '2023-01-01',
-        end_date: '2024-01-01',
-        initial_capital: 1000000,
+      const { backtest_id } = await quantService.runBacktestAsync({
+        strategy_id: backtestStrategyId,
+        start_date: backtestStartDate,
+        end_date: backtestEndDate,
+        initial_capital: backtestInitialCapital,
+        benchmark: backtestBenchmark,
+        commission_rate: backtestCommissionRate,
+        slippage: backtestSlippage,
       });
-      setBacktestResult(result);
+
+      await quantService.pollBacktestStatus(
+        backtest_id,
+        (status) => setBacktestProgress(status),
+        2000,
+        120
+      );
+
+      const report = await quantService.getBacktestReport(backtest_id);
+      setBacktestReport(report);
+      
+      loadBacktestHistory();
     } catch (error) {
       console.error('Backtest failed:', error);
     } finally {
-      setLoading(false);
+      setBacktestRunning(false);
     }
+  };
+
+  const loadBacktestHistory = useCallback(async () => {
+    try {
+      const history = await quantService.getBacktestHistory(10);
+      setBacktestHistory(history);
+    } catch (error) {
+      console.error('Failed to load backtest history:', error);
+    }
+  }, []);
+
+  const handleDatePreset = (days: number) => {
+    const end = new Date();
+    const start = new Date();
+    start.setDate(start.getDate() - days);
+    
+    setBacktestEndDate(end.toISOString().split('T')[0]);
+    setBacktestStartDate(start.toISOString().split('T')[0]);
   };
 
   const handleValidateCode = async () => {
@@ -1148,150 +1214,449 @@ export default function QuantPage() {
           <TabsContent value="backtest" className="space-y-6">
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               <div className="lg:col-span-2">
-                <Card className="bg-zinc-900/50 border-zinc-800" data-testid="backtest-results">
+                <Card className="bg-zinc-900/50 border-zinc-800">
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
-                      <LineChart className="w-5 h-5 text-amber-400" />
-                      回测结果
+                      <Settings className="w-5 h-5 text-amber-400" />
+                      回测配置
                     </CardTitle>
+                    <CardDescription>配置回测参数并运行策略回测</CardDescription>
                   </CardHeader>
                   <CardContent>
-                    {backtestResult ? (
-                      <div className="space-y-6">
-                        <div className="h-64 flex items-center justify-center border border-zinc-700 rounded-lg" data-testid="equity-curve-chart">
-                          <div className="text-center">
-                            <TrendingUp className="w-16 h-16 mx-auto text-amber-400 mb-4" />
-                            <p className="text-lg font-medium" data-testid="total-return">
-                              年化收益: {formatPercent(backtestResult.metrics.annual_return)}
-                            </p>
-                            <p className="text-zinc-400" data-testid="max-drawdown">
-                              最大回撤: {formatPercent(backtestResult.metrics.max_drawdown)}
-                            </p>
+                    <div className="space-y-4">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label className="text-zinc-400">选择策略 *</Label>
+                          <Select value={backtestStrategyId} onValueChange={setBacktestStrategyId}>
+                            <SelectTrigger className="bg-zinc-800 border-zinc-700">
+                              <SelectValue placeholder="选择要回测的策略" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {strategies.map((strategy) => (
+                                <SelectItem key={strategy.strategy_id} value={strategy.strategy_id}>
+                                  {strategy.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-zinc-400">基准指数</Label>
+                          <Select value={backtestBenchmark} onValueChange={setBacktestBenchmark}>
+                            <SelectTrigger className="bg-zinc-800 border-zinc-700">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {backtestConfigs?.benchmarks.map((b) => (
+                                <SelectItem key={b.code} value={b.code}>
+                                  {b.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label className="text-zinc-400">时间范围</Label>
+                        <div className="flex flex-wrap gap-2 mb-2">
+                          {backtestConfigs?.date_presets.map((preset) => (
+                            <Button
+                              key={preset.label}
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleDatePreset(preset.days)}
+                              className="text-xs"
+                            >
+                              {preset.label}
+                            </Button>
+                          ))}
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-1">
+                            <Label className="text-zinc-500 text-xs">开始日期</Label>
+                            <Input
+                              type="date"
+                              value={backtestStartDate}
+                              onChange={(e) => setBacktestStartDate(e.target.value)}
+                              className="bg-zinc-800 border-zinc-700"
+                            />
                           </div>
-                        </div>
-
-                        <div className="grid grid-cols-4 gap-4">
-                          <MetricCard
-                            label="总收益"
-                            value={formatPercent(backtestResult.metrics.total_return)}
-                            icon={<BarChart3 className="w-4 h-4" />}
-                          />
-                          <MetricCard
-                            label="夏普比率"
-                            value={formatNumber(backtestResult.metrics.sharpe_ratio)}
-                            icon={<Activity className="w-4 h-4" />}
-                            data-testid="sharpe-ratio"
-                          />
-                          <MetricCard
-                            label="最大回撤"
-                            value={formatPercent(backtestResult.metrics.max_drawdown)}
-                            icon={<TrendingUp className="w-4 h-4 rotate-180" />}
-                          />
-                          <MetricCard
-                            label="胜率"
-                            value={formatPercent(backtestResult.metrics.win_rate)}
-                            icon={<Zap className="w-4 h-4" />}
-                          />
-                        </div>
-
-                        <div className="grid grid-cols-3 gap-4">
-                          <MetricCard
-                            label="卡玛比率"
-                            value={formatNumber(backtestResult.metrics.calmar_ratio)}
-                          />
-                          <MetricCard
-                            label="索提诺比率"
-                            value={formatNumber(backtestResult.metrics.sortino_ratio)}
-                          />
-                          <MetricCard
-                            label="信息比率"
-                            value={formatNumber(backtestResult.metrics.information_ratio ?? 0)}
-                          />
-                        </div>
-
-                        <div>
-                          <h4 className="font-medium mb-3">交易记录</h4>
-                          <div className="max-h-48 overflow-y-auto">
-                            <table className="w-full text-sm">
-                              <thead className="text-zinc-400 border-b border-zinc-700">
-                                <tr>
-                                  <th className="text-left py-2">日期</th>
-                                  <th className="text-left py-2">股票</th>
-                                  <th className="text-left py-2">方向</th>
-                                  <th className="text-right py-2">数量</th>
-                                  <th className="text-right py-2">金额</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {backtestResult.trades.slice(0, 10).map((trade) => (
-                                  <tr key={trade.trade_id} className="border-b border-zinc-800">
-                                    <td className="py-2">
-                                      {new Date(trade.trade_date).toLocaleDateString()}
-                                    </td>
-                                    <td className="py-2">{trade.stock_code}</td>
-                                    <td className="py-2">
-                                      <Badge
-                                        variant={
-                                          trade.direction === 'buy' ? 'default' : 'danger'
-                                        }
-                                        size="sm"
-                                      >
-                                        {trade.direction === 'buy' ? '买入' : '卖出'}
-                                      </Badge>
-                                    </td>
-                                    <td className="text-right py-2">{trade.quantity}</td>
-                                    <td className="text-right py-2">
-                                      ¥{trade.amount.toLocaleString()}
-                                    </td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
+                          <div className="space-y-1">
+                            <Label className="text-zinc-500 text-xs">结束日期</Label>
+                            <Input
+                              type="date"
+                              value={backtestEndDate}
+                              onChange={(e) => setBacktestEndDate(e.target.value)}
+                              className="bg-zinc-800 border-zinc-700"
+                            />
                           </div>
                         </div>
                       </div>
-                    ) : (
-                      <div className="h-64 flex items-center justify-center text-zinc-500">
-                        <div className="text-center">
-                          <LineChart className="w-16 h-16 mx-auto opacity-50 mb-4" />
-                          <p>在策略开发页面选择策略并运行回测</p>
+
+                      <div className="grid grid-cols-3 gap-4">
+                        <div className="space-y-2">
+                          <Label className="text-zinc-400">初始资金</Label>
+                          <Input
+                            type="number"
+                            value={backtestInitialCapital}
+                            onChange={(e) => setBacktestInitialCapital(Number(e.target.value))}
+                            className="bg-zinc-800 border-zinc-700"
+                            step={100000}
+                            min={10000}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-zinc-400">手续费率</Label>
+                          <Input
+                            type="number"
+                            value={backtestCommissionRate}
+                            onChange={(e) => setBacktestCommissionRate(Number(e.target.value))}
+                            className="bg-zinc-800 border-zinc-700"
+                            step={0.0001}
+                            min={0}
+                            max={0.01}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-zinc-400">滑点</Label>
+                          <Input
+                            type="number"
+                            value={backtestSlippage}
+                            onChange={(e) => setBacktestSlippage(Number(e.target.value))}
+                            className="bg-zinc-800 border-zinc-700"
+                            step={0.001}
+                            min={0}
+                            max={0.1}
+                          />
                         </div>
                       </div>
-                    )}
+
+                      {backtestProgress && backtestRunning && (
+                        <div className="bg-zinc-800/50 rounded-lg p-4 border border-zinc-700">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-sm text-zinc-400">{backtestProgress.message}</span>
+                            <span className="text-sm text-amber-400">{(backtestProgress.progress * 100).toFixed(0)}%</span>
+                          </div>
+                          <div className="w-full bg-zinc-700 rounded-full h-2">
+                            <div
+                              className="bg-amber-500 h-2 rounded-full transition-all duration-300"
+                              style={{ width: `${backtestProgress.progress * 100}%` }}
+                            />
+                          </div>
+                        </div>
+                      )}
+
+                      <Button
+                        className="w-full bg-amber-500 hover:bg-amber-600"
+                        onClick={handleRunBacktest}
+                        disabled={backtestRunning || !backtestStrategyId || !backtestStartDate || !backtestEndDate}
+                      >
+                        {backtestRunning ? (
+                          <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                        ) : (
+                          <Play className="w-4 h-4 mr-2" />
+                        )}
+                        {backtestRunning ? '回测运行中...' : '开始回测'}
+                      </Button>
+                    </div>
                   </CardContent>
                 </Card>
+
+                {backtestReport && backtestReport.status === 'completed' && backtestReport.report && (
+                  <Card className="bg-zinc-900/50 border-zinc-800 mt-6">
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <LineChart className="w-5 h-5 text-amber-400" />
+                        回测结果 - {backtestReport.strategy_name}
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      {(() => {
+                        const report = backtestReport.report as any;
+                        const summary = report.executive_summary || {};
+                        const metrics = report.performance_metrics || {};
+                        const equityCurve = report.equity_curve;
+                        
+                        console.log('Backtest report:', report);
+                        console.log('Equity curve:', equityCurve);
+                        
+                        return (
+                          <div className="space-y-6">
+                            <div className="flex items-center justify-between p-4 bg-zinc-800/50 rounded-lg border border-zinc-700">
+                              <div>
+                                <div className="text-sm text-zinc-400 mb-1">策略评级</div>
+                                <div className={`text-3xl font-bold ${
+                                  summary.grade?.startsWith('A') ? 'text-green-400' :
+                                  summary.grade?.startsWith('B') ? 'text-blue-400' :
+                                  summary.grade?.startsWith('C') ? 'text-yellow-400' :
+                                  'text-red-400'
+                                }`}>
+                                  {summary.grade || 'N/A'}
+                                </div>
+                              </div>
+                              <div className="text-right">
+                                <div className="text-sm text-zinc-400 mb-1">综合得分</div>
+                                <div className="text-2xl font-bold text-amber-400">
+                                  {summary.total_score?.toFixed(1) || 'N/A'}
+                                </div>
+                              </div>
+                            </div>
+
+                            {equityCurve && equityCurve.dates && equityCurve.dates.length > 0 ? (
+                              <div className="bg-zinc-800/50 rounded-lg p-4 border border-zinc-700">
+                                <h4 className="font-medium text-sm text-zinc-400 mb-4">权益曲线</h4>
+                                <div className="h-64 relative">
+                                  <svg className="w-full h-full" viewBox="0 0 800 200" preserveAspectRatio="none">
+                                    <defs>
+                                      <linearGradient id="equityGradient" x1="0" y1="0" x2="0" y2="1">
+                                        <stop offset="0%" stopColor="rgba(245, 158, 11, 0.3)" />
+                                        <stop offset="100%" stopColor="rgba(245, 158, 11, 0)" />
+                                      </linearGradient>
+                                    </defs>
+                                    {(() => {
+                                      const ec = equityCurve;
+                                      const maxEquity = Math.max(...ec.equities);
+                                      const minEquity = Math.min(...ec.equities);
+                                      const range = maxEquity - minEquity || 1;
+                                      const points = ec.equities.map((e: number, i: number) => {
+                                        const x = (i / (ec.equities.length - 1)) * 800;
+                                        const y = 200 - ((e - minEquity) / range) * 180;
+                                        return `${x},${y}`;
+                                      }).join(' ');
+                                      const areaPoints = `0,200 ${points} 800,200`;
+                                      return (
+                                        <>
+                                          <polygon
+                                            points={areaPoints}
+                                            fill="url(#equityGradient)"
+                                          />
+                                          <polyline
+                                            points={points}
+                                            fill="none"
+                                            stroke="#f59e0b"
+                                            strokeWidth="2"
+                                          />
+                                        </>
+                                      );
+                                    })()}
+                                  </svg>
+                                  <div className="absolute bottom-0 left-0 right-0 flex justify-between text-xs text-zinc-500 px-2">
+                                    {equityCurve.dates.filter((_: any, i: number) => i % Math.ceil(equityCurve.dates.length / 6) === 0).map((d: string, i: number) => (
+                                      <span key={i}>{d}</span>
+                                    ))}
+                                  </div>
+                                </div>
+                                <div className="flex justify-between mt-4 text-sm">
+                                  <div>
+                                    <span className="text-zinc-500">初始资金: </span>
+                                    <span className="text-zinc-300">¥{equityCurve.initial_capital?.toLocaleString()}</span>
+                                  </div>
+                                  <div>
+                                    <span className="text-zinc-500">最终权益: </span>
+                                    <span className="text-zinc-300">¥{equityCurve.final_equity?.toLocaleString()}</span>
+                                  </div>
+                                  <div>
+                                    <span className="text-zinc-500">总收益: </span>
+                                    <span className={equityCurve.total_return >= 0 ? 'text-green-400' : 'text-red-400'}>
+                                      {formatPercent(equityCurve.total_return)}
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="bg-zinc-800/50 rounded-lg p-4 border border-zinc-700">
+                                <h4 className="font-medium text-sm text-zinc-400 mb-4">权益曲线</h4>
+                                <div className="h-32 flex items-center justify-center text-zinc-500">
+                                  <div className="text-center">
+                                    <LineChart className="w-12 h-12 mx-auto opacity-50 mb-2" />
+                                    <p className="text-sm">暂无权益曲线数据</p>
+                                    <p className="text-xs mt-1">dates: {equityCurve?.dates?.length || 0}, equities: {equityCurve?.equities?.length || 0}</p>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+
+                            {equityCurve && equityCurve.drawdowns && equityCurve.drawdowns.length > 0 && (
+                              <div className="bg-zinc-800/50 rounded-lg p-4 border border-zinc-700">
+                                <h4 className="font-medium text-sm text-zinc-400 mb-4">回撤曲线</h4>
+                                <div className="h-32 relative">
+                                  <svg className="w-full h-full" viewBox="0 0 800 100" preserveAspectRatio="none">
+                                    {(() => {
+                                      const dd = equityCurve.drawdowns;
+                                      const maxDd = Math.min(...dd);
+                                      const points = dd.map((d: number, i: number) => {
+                                        const x = (i / (dd.length - 1)) * 800;
+                                        const y = 100 - (d / maxDd) * 80;
+                                        return `${x},${y}`;
+                                      }).join(' ');
+                                      return (
+                                        <polyline
+                                          points={points}
+                                          fill="none"
+                                          stroke="#ef4444"
+                                          strokeWidth="1.5"
+                                        />
+                                      );
+                                    })()}
+                                  </svg>
+                                </div>
+                              </div>
+                            )}
+
+                            <div className="grid grid-cols-4 gap-4">
+                              <MetricCard
+                                label="总收益"
+                                value={summary.total_return ? formatPercent(summary.total_return) : 'N/A'}
+                                icon={<BarChart3 className="w-4 h-4" />}
+                              />
+                              <MetricCard
+                                label="年化收益"
+                                value={summary.annual_return ? formatPercent(summary.annual_return) : 'N/A'}
+                                icon={<TrendingUp className="w-4 h-4" />}
+                              />
+                              <MetricCard
+                                label="夏普比率"
+                                value={summary.sharpe_ratio?.toFixed(2) || 'N/A'}
+                                icon={<Activity className="w-4 h-4" />}
+                              />
+                              <MetricCard
+                                label="最大回撤"
+                                value={summary.max_drawdown ? formatPercent(summary.max_drawdown) : 'N/A'}
+                                icon={<TrendingUp className="w-4 h-4 rotate-180" />}
+                              />
+                            </div>
+
+                            {metrics.returns && (
+                              <div className="space-y-3">
+                                <h4 className="font-medium text-sm text-zinc-400">收益指标</h4>
+                                <div className="grid grid-cols-3 gap-3">
+                                  <MetricRow label="累计收益" value={metrics.returns.cumulative_return ? formatPercent(metrics.returns.cumulative_return) : 'N/A'} />
+                                  <MetricRow label="超额收益" value={metrics.returns.excess_return ? formatPercent(metrics.returns.excess_return) : 'N/A'} />
+                                  <MetricRow label="CAGR" value={metrics.returns.cagr ? formatPercent(metrics.returns.cagr) : 'N/A'} />
+                                </div>
+                              </div>
+                            )}
+
+                            {metrics.risk && (
+                              <div className="space-y-3">
+                                <h4 className="font-medium text-sm text-zinc-400">风险指标</h4>
+                                <div className="grid grid-cols-3 gap-3">
+                                  <MetricRow label="年化波动率" value={metrics.risk.volatility ? formatPercent(metrics.risk.volatility) : 'N/A'} />
+                                  <MetricRow label="VaR(95%)" value={metrics.risk.var_95 ? formatPercent(metrics.risk.var_95) : 'N/A'} />
+                                  <MetricRow label="CVaR(95%)" value={metrics.risk.cvar_95 ? formatPercent(metrics.risk.cvar_95) : 'N/A'} />
+                                </div>
+                              </div>
+                            )}
+
+                            {metrics.risk_adjusted && (
+                              <div className="space-y-3">
+                                <h4 className="font-medium text-sm text-zinc-400">风险调整收益</h4>
+                                <div className="grid grid-cols-3 gap-3">
+                                  <MetricRow label="Sortino比率" value={metrics.risk_adjusted.sortino_ratio?.toFixed(2) || 'N/A'} />
+                                  <MetricRow label="Calmar比率" value={metrics.risk_adjusted.calmar_ratio?.toFixed(2) || 'N/A'} />
+                                  <MetricRow label="Omega比率" value={metrics.risk_adjusted.omega_ratio?.toFixed(2) || 'N/A'} />
+                                </div>
+                              </div>
+                            )}
+
+                            {metrics.trading && (
+                              <div className="space-y-3">
+                                <h4 className="font-medium text-sm text-zinc-400">交易统计</h4>
+                                <div className="grid grid-cols-3 gap-3">
+                                  <MetricRow label="胜率" value={metrics.trading.win_rate ? formatPercent(metrics.trading.win_rate) : 'N/A'} />
+                                  <MetricRow label="盈亏比" value={metrics.trading.profit_loss_ratio?.toFixed(2) || 'N/A'} />
+                                  <MetricRow label="换手率" value={metrics.trading.turnover_rate ? formatPercent(metrics.trading.turnover_rate) : 'N/A'} />
+                                </div>
+                              </div>
+                            )}
+
+                            {report.recommendations && report.recommendations.length > 0 && (
+                              <div className="space-y-3">
+                                <h4 className="font-medium text-sm text-zinc-400">优化建议</h4>
+                                <div className="space-y-2">
+                                  {report.recommendations.map((rec: string, i: number) => (
+                                    <div key={i} className="flex items-start gap-2 text-sm">
+                                      <Info className="w-4 h-4 text-amber-400 mt-0.5 flex-shrink-0" />
+                                      <span className="text-zinc-300">{rec}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
+                    </CardContent>
+                  </Card>
+                )}
               </div>
 
-              <div>
+              <div className="space-y-6">
                 <Card className="bg-zinc-900/50 border-zinc-800">
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
                       <BarChart3 className="w-5 h-5 text-amber-400" />
-                      绩效指标
+                      回测历史
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    {backtestResult ? (
+                    {backtestHistory && backtestHistory.backtests.length > 0 ? (
                       <div className="space-y-3">
-                        <MetricRow label="总收益率" value={formatPercent(backtestResult.metrics.total_return)} />
-                        <MetricRow label="年化收益率" value={formatPercent(backtestResult.metrics.annual_return)} />
-                        <MetricRow label="超额收益" value={formatPercent(backtestResult.metrics.excess_return)} />
-                        <MetricRow label="年化波动率" value={formatPercent(backtestResult.metrics.volatility)} />
-                        <MetricRow label="夏普比率" value={formatNumber(backtestResult.metrics.sharpe_ratio)} />
-                        <MetricRow label="索提诺比率" value={formatNumber(backtestResult.metrics.sortino_ratio)} />
-                        <MetricRow label="卡玛比率" value={formatNumber(backtestResult.metrics.calmar_ratio)} />
-                        <MetricRow label="最大回撤" value={formatPercent(backtestResult.metrics.max_drawdown)} />
-                        <MetricRow label="胜率" value={formatPercent(backtestResult.metrics.win_rate)} />
-                        <MetricRow label="盈亏比" value={formatNumber(backtestResult.metrics.profit_loss_ratio)} />
-                        <MetricRow label="总交易次数" value={(backtestResult.metrics.total_trades ?? 0).toString()} />
-                        <MetricRow label="换手率" value={formatPercent(backtestResult.metrics.turnover_rate ?? 0)} />
+                        {backtestHistory.backtests.map((bt: any) => (
+                          <div
+                            key={bt.backtest_id}
+                            className="p-3 bg-zinc-800/50 rounded-lg border border-zinc-700"
+                          >
+                            <div className="flex items-center justify-between mb-2">
+                              <span className="text-xs text-zinc-500">{bt.backtest_id}</span>
+                              <Badge
+                                variant={bt.status === 'completed' ? 'default' : 'secondary'}
+                                size="sm"
+                              >
+                                {bt.status === 'completed' ? '已完成' : bt.status}
+                              </Badge>
+                            </div>
+                            {bt.summary && (
+                              <div className="grid grid-cols-2 gap-2 text-xs">
+                                <div>
+                                  <span className="text-zinc-500">收益: </span>
+                                  <span className={bt.summary.total_return >= 0 ? 'text-green-400' : 'text-red-400'}>
+                                    {formatPercent(bt.summary.total_return)}
+                                  </span>
+                                </div>
+                                <div>
+                                  <span className="text-zinc-500">夏普: </span>
+                                  <span className="text-zinc-300">{bt.summary.sharpe_ratio?.toFixed(2)}</span>
+                                </div>
+                              </div>
+                            )}
+                            <div className="text-xs text-zinc-500 mt-1">
+                              {new Date(bt.created_at).toLocaleString()}
+                            </div>
+                          </div>
+                        ))}
                       </div>
                     ) : (
                       <div className="text-center py-8 text-zinc-500">
                         <BarChart3 className="w-12 h-12 mx-auto opacity-50 mb-4" />
-                        <p>运行回测后查看详细指标</p>
+                        <p>暂无回测历史</p>
                       </div>
                     )}
+                  </CardContent>
+                </Card>
+
+                <Card className="bg-zinc-900/50 border-zinc-800">
+                  <CardHeader>
+                    <CardTitle className="text-sm">配置说明</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-2 text-xs text-zinc-400">
+                      <p><strong>初始资金:</strong> 回测起始资金金额</p>
+                      <p><strong>手续费率:</strong> 每笔交易的手续费比例</p>
+                      <p><strong>滑点:</strong> 交易执行时的价格滑点</p>
+                      <p><strong>基准指数:</strong> 用于计算超额收益的基准</p>
+                    </div>
                   </CardContent>
                 </Card>
               </div>
